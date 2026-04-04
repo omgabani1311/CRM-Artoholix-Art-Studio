@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Art Studio CRM</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=3">
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+    <!-- Intl-Tel-Input CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/css/intlTelInput.css" />
+</head>
+
+<body>
+
+    <div class="bg-shape shape-1"></div>
+    <div class="bg-shape shape-2"></div>
+    <div class="bg-shape shape-3"></div>
+
+    <!-- Login screen -->
+    <div id="login-view" class="view active">
+        <div class="login-container glass">
+            <div class="logo-box">
+                <div
+                    style="display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 15px;">
+                    <!-- <i class='bx bxs-palette' style="margin-bottom: 0;"></i> -->
+                    <img src="https://res.cloudinary.com/dzgc4sghz/image/upload/v1773142856/logo_white_c01abm.png"
+                        alt="Artis Logo">
+                </div>
+                <p>Welcome! Select your role to continue</p>
+            </div>
+
+            <div id="roles-selection" class="roles-grid">
+                <div class="role-card" onclick="app.selectRole('Owner')">
+                    <div class="icon-wrap"><i class='bx bxs-crown'></i></div>
+                    <h3>Owner</h3>
+                </div>
+                <div class="role-card" onclick="app.selectRole('Manager')">
+                    <div class="icon-wrap"><i class='bx bx-briefcase'></i></div>
+                    <h3>Manager</h3>
+                </div>
+                <div class="role-card" onclick="app.selectRole('Team')">
+                    <div class="icon-wrap"><i class='bx bx-paint'></i></div>
+                    <h3>Arto Team</h3>
+                </div>
+            </div>
+
+            <form id="login-form" class="login-form" style="display: none;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
+                    <button type="button" class="btn-icon" onclick="app.backToRoles()"><i
+                            class='bx bx-arrow-back'></i></button>
+                    <h3 id="login-role-title">Login</h3>
+                </div>
+                <div id="login-error" class="error-text"></div>
+                <input type="hidden" id="login-role">
+                <div class="form-group" style="text-align: left;">
+                    <label>Password</label>
+                    <input type="password" id="login-password" placeholder="Enter secure password" required
+                        autocomplete="current-password">
+                    <small style="color: var(--text-muted); font-size: 11px; display: block; margin-top: 5px;">Required:
+                        Min 8 chars, 1 Uppercase, 1 Lowercase, 1 Number, 1 Special Char (@$!%*?&)</small>
+                </div>
+                <button type="submit" class="btn-primary"
+                    style="width: 100%; justify-content: center; margin-top: 10px;">Secure Login</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main Dashboard -->
+    <div id="dashboard-view" class="view">
+        <aside class="sidebar glass">
+            <div class="sidebar-header">
+                <!-- <i class='bx bxs-palette'></i> -->
+                <!-- <h2>Artis</h2> -->
+                <img src="https://res.cloudinary.com/dzgc4sghz/image/upload/v1773142856/logo_white_c01abm.png" alt="">
+            </div>
+            <ul class="nav-links">
+                <li class="nav-item active" data-page="dashboard" onclick="app.navigate('dashboard')">
+                    <a href="#"><i class='bx bx-grid-alt'></i> Dashboard</a>
+                </li>
+                <li class="nav-item" data-page="followups" onclick="app.navigate('followups')">
+                    <a href="#"><i class='bx bx-list-check'></i> Follow-ups</a>
+                </li>
+                <li class="nav-item restricted owner-only" data-page="team" onclick="app.navigate('team')">
+                    <a href="#"><i class='bx bx-id-card'></i> Manage Team</a>
+                </li>
+                <li class="nav-item restricted mgmt" data-page="clients" onclick="app.navigate('clients')">
+                    <a href="#"><i class='bx bx-group'></i> Clients</a>
+                </li>
+                <li class="nav-item restricted mgmt" data-page="reminders" onclick="app.navigate('reminders')">
+                    <a href="#" style="display: flex; align-items: center; justify-content: space-between;">
+                        <span><i class='bx bxl-whatsapp'></i> Reminders Sent</span>
+                        <span id="reminder-count-badge" style="display:none; background: #25d366; color:#000; font-size:10px; font-weight:700; padding:2px 7px; border-radius:10px; min-width:18px; align-items:center; justify-content:center;">0</span>
+                    </a>
+                </li>
+                <li class="nav-item restricted mgmt" data-page="analytics" onclick="app.navigate('analytics')">
+                    <a href="#"><i class='bx bx-bar-chart-alt-2'></i> Analytics</a>
+                </li>
+                <li class="nav-item" data-page="settings" onclick="app.navigate('settings')">
+                    <a href="#"><i class='bx bx-cog'></i> Settings</a>
+                </li>
+            </ul>
+        </aside>
+
+        <main class="main-content">
+            <header class="topbar glass-header">
+                <div class="search-bar">
+                    <i class='bx bx-search'></i>
+                    <input type="text" id="global-search" placeholder="Search by client name, project..."
+                        oninput="app.handleSearch(this.value)">
+                </div>
+                <div class="user-info">
+                    <span id="user-role-badge" class="badge">Role</span>
+                    <button class="btn-icon" onclick="app.logout()" title="Logout"><i
+                            class='bx bx-log-out'></i></button>
+                    <button class="btn-icon" onclick="app.sendTestNotification()" title="Send Test Notification"><i
+                            class='bx bx-bell'></i></button>
+                    <div class="avatar"><i class='bx bx-user'></i></div>
+                </div>
+            </header>
+
+            <div class="content-body">
+
+                <!-- Page: Dashboard -->
+                <div id="page-dashboard" class="page-section section-active">
+                    <div class="dashboard-header split">
+                        <div>
+                            <h1 id="welcome-message">Welcome</h1>
+                            <p class="subtitle">Here's your studio overview for today.</p>
+                        </div>
+                        <button class="btn-primary restricted owner-only" onclick="app.openModal()">
+                            <i class='bx bx-plus'></i> New Follow-up
+                        </button>
+                    </div>
+
+                    <!-- Stats blocks -->
+                    <div class="stats-grid">
+                        <div class="stat-card glass">
+                            <div class="stat-icon"><i class='bx bx-list-ul'></i></div>
+                            <div class="stat-details">
+                                <h3>Total Tasks</h3>
+                                <h2 id="stat-total">0</h2>
+                            </div>
+                        </div>
+                        <div class="stat-card glass">
+                            <div class="stat-icon pending"><i class='bx bx-time'></i></div>
+                            <div class="stat-details">
+                                <h3>Pending</h3>
+                                <h2 id="stat-pending">0</h2>
+                            </div>
+                        </div>
+                        <div class="stat-card glass">
+                            <div class="stat-icon completed"><i class='bx bx-check-double'></i></div>
+                            <div class="stat-details">
+                                <h3>Completed</h3>
+                                <h2 id="stat-completed">0</h2>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Follow-ups Preview -->
+                    <div class="section-title split">
+                        <h2>Recent Follow-ups</h2>
+                        <a href="#"
+                            style="color: var(--primary); text-decoration: none; font-size: 14px; font-weight: 500;"
+                            onclick="app.navigate('followups')">View All</a>
+                    </div>
+
+                    <div class="card-horizontal-scroller">
+                        <div class="followup-list glass" id="dashboard-followup-container">
+                            <!-- Populated by JS Preview -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Page: Follow-ups -->
+                <div id="page-followups" class="page-section">
+                    <div class="dashboard-header split">
+                        <div>
+                            <h1>All Follow-ups</h1>
+                            <p class="subtitle">Manage all tasks and artworks here.</p>
+                        </div>
+                        <button class="btn-primary restricted owner-only" onclick="app.openModal()">
+                            <i class='bx bx-plus'></i> Add New
+                        </button>
+                    </div>
+                    <div class="card-horizontal-scroller">
+                        <div class="followup-list glass" id="full-followup-container" style="min-height: 400px;">
+                            <!-- Populated by JS Full List -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Page: Team Management -->
+                <div id="page-team" class="page-section">
+                    <div class="dashboard-header split">
+                        <div>
+                            <h1>Team Directory</h1>
+                            <p class="subtitle">Insert, update, and remove Team members.</p>
+                        </div>
+                        <button class="btn-primary" onclick="app.openTeamModal()">
+                            <i class='bx bx-user-plus'></i> Add Team
+                        </button>
+                    </div>
+                    <div class="card-horizontal-scroller">
+                        <div class="followup-list glass" id="team-container" style="min-height: 400px;">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Page: Clients -->
+                <div id="page-clients" class="page-section">
+                    <div class="dashboard-header split">
+                        <div>
+                            <h1>Client Directory</h1>
+                            <p class="subtitle">Manage all studio clients and their details.</p>
+                        </div>
+                        <button class="btn-primary"
+                            onclick="app.showAlert('Clients are automatically imported and synced from your Follow-ups.', 'Auto Sync Active')">
+                            <i class='bx bx-info-circle'></i> Auto Synced
+                        </button>
+                    </div>
+                    <div class="card-horizontal-scroller">
+                        <div class="glass" style="padding: 20px;">
+                            <div class="table-responsive">
+                                <table class="artis-table" style="min-width: 800px;">
+                                    <thead>
+                                        <tr>
+                                            <th>Client Name</th>
+                                            <th>Primary Phone</th>
+                                            <th>City, State</th>
+                                            <th>Total Projects</th>
+                                            <th>Gross Revenue (₹)</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="clients-tbody">
+                                        <!-- Populated by JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Page: Reminders Sent -->
+                <div id="page-reminders" class="page-section">
+                    <div class="dashboard-header split">
+                        <div>
+                            <h1>Reminders Sent</h1>
+                            <p class="subtitle">All clients who received a WhatsApp payment reminder.</p>
+                        </div>
+                    </div>
+                    <div class="card-horizontal-scroller">
+                        <div class="glass" style="padding: 20px; min-height: 300px;">
+                            <div id="reminders-content">
+                                <!-- Populated by JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Page: Analytics -->
+
+                <div id="page-analytics" class="page-section">
+                    <div class="dashboard-header split">
+                        <div>
+                            <h1>Studio Analytics</h1>
+                            <p class="subtitle">Project based performance overview.</p>
+                        </div>
+                    </div>
+                    <div class="stats-grid">
+                        <div class="stat-card glass" style="flex-direction: column; align-items: flex-start;">
+                            <h3 style="color: var(--text-muted);">Total Revenue</h3>
+                            <h2 id="analytics-total" style="font-size: 32px; color: var(--primary);">₹ 0</h2>
+                            <p style="color: var(--success); font-size: 13px; margin-top: 10px;">Based on all projects
+                            </p>
+                        </div>
+                        <div class="stat-card glass" style="flex-direction: column; align-items: flex-start;">
+                            <h3 style="color: var(--text-muted);">Monthly Revenue</h3>
+                            <h2 id="analytics-monthly" style="font-size: 32px; color: var(--primary);">₹ 0</h2>
+                            <p style="color: var(--success); font-size: 13px; margin-top: 10px;">This month's received
+                                payments</p>
+                        </div>
+                        <div class="stat-card glass" style="flex-direction: column; align-items: flex-start;">
+                            <h3 style="color: var(--text-muted);">Payment Received</h3>
+                            <h2 id="analytics-received" style="font-size: 32px; color: var(--success);">₹ 0</h2>
+                            <p style="color: var(--success); font-size: 13px; margin-top: 10px;">Advance + Clear
+                                Payments</p>
+                        </div>
+                        <div class="stat-card glass" style="flex-direction: column; align-items: flex-start;">
+                            <h3 style="color: var(--text-muted);">Upcoming Amount</h3>
+                            <h2 id="analytics-upcoming" style="font-size: 32px; color: var(--warning);">₹ 0</h2>
+                            <p style="color: var(--warning); font-size: 13px; margin-top: 10px;">Remaining pending
+                                amount</p>
+                        </div>
+
+                    </div>
+                </div>
+                <!-- Page: Settings -->
+                <div id="page-settings" class="page-section">
+                    <div class="dashboard-header split">
+                        <div>
+                            <h1>Settings</h1>
+                            <p class="subtitle">Customize your CRM experience.</p>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 30px; flex-wrap: wrap; margin-bottom: 30px;">
+                        <div class="glass" style="padding: 30px; flex: 1; min-width: 300px;">
+                            <h3 style="margin-bottom: 20px; color: var(--primary);">Profile Settings</h3>
+                            <div class="form-group">
+                                <label>Studio Name</label>
+                                <input type="text" value="Artis Studio Co.">
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Notification Email</label>
+                                    <input type="email" value="admin@artis.com">
+                                </div>
+                                <div class="form-group">
+                                    <label>Currency</label>
+                                    <select>
+                                        <option>INR (₹)</option>
+                                        <option>USD ($)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <h3 style="margin: 30px 0 20px; color: var(--primary);">Theme</h3>
+                            <div style="display: flex; gap: 15px; margin-bottom: 20px;">
+                                <label style="display: flex; align-items: center; gap: 8px;"><input type="radio"
+                                        name="theme" checked> Dark Glass</label>
+                                <label style="display: flex; align-items: center; gap: 8px;"><input type="radio"
+                                        name="theme"> Light Minimal</label>
+                            </div>
+                            <button class="btn-secondary"
+                                onclick="app.showAlert('Settings saved successfully!', 'Success')">Save
+                                Preferences</button>
+                        </div>
+
+                        <!-- Change Password Block -->
+                        <div class="glass" style="padding: 30px; flex: 1; min-width: 300px;"
+                            id="settings-password-block">
+                            <h3 style="margin-bottom: 20px; color: var(--primary);">Change Password</h3>
+                            <form id="change-pass-form">
+                                <div id="pass-msg" class="error-text" style="display: none;"></div>
+                                <div class="form-group">
+                                    <label>Current Password</label>
+                                    <input type="password" id="cp-current" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>New Password</label>
+                                    <input type="password" id="cp-new" required>
+                                    <small
+                                        style="color: var(--text-muted); font-size: 11px; display: block; margin-top: 5px;">Must
+                                        have Min 8 chars, 1 Uppercase, 1 Lowercase, 1 Number, 1 Special Char.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label>Confirm New Password</label>
+                                    <input type="password" id="cp-confirm" required>
+                                </div>
+                                <button type="submit" class="btn-primary">Update Password</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal for new/edit follow-up -->
+    <div id="followup-modal" class="modal-overlay">
+        <div class="modal glass animate-pop" style="max-width: 700px;">
+            <div class="modal-header">
+                <h2 id="modal-title">Add Follow-up</h2>
+                <button class="btn-icon" onclick="app.closeModal()"><i class='bx bx-x'></i></button>
+            </div>
+            <form id="followup-form">
+                <input type="hidden" id="f-id">
+
+                <div class="form-grid">
+                    <div class="form-group"><label>Client Name</label><input type="text" id="f-client"
+                            placeholder="e.g. Emma Watson" required></div>
+                    <div class="form-group"><label>Contact No.</label>
+                        <input type="tel" id="f-contact" placeholder="9876543210" style="width: 100%;">
+                    </div>
+
+                    <div class="form-group"><label>City</label>
+                        <select id="f-location" onchange="app.updateState()" required>
+                            <option value="" disabled selected>Select City</option>
+                            <!-- JS populated -->
+                        </select>
+                    </div>
+                    <div class="form-group"><label>State</label>
+                        <input type="text" id="f-state" readonly
+                            style="background: rgba(255,255,255,0.02); color: var(--text-muted);"
+                            placeholder="Auto-filled">
+                    </div>
+                    <div class="form-group"><label>Art Style</label>
+                        <select id="f-style" required>
+                            <option value="" disabled selected>Select Art Style</option>
+                            <option value="3D Wall Art">3D Wall Art</option>
+                            <option value="Wall Mural">Wall Mural</option>
+                            <option value="Interior Styling">Interior Styling</option>
+                            <option value="Customisation">Customisation</option>
+                            <option value="Resin Art">Resin Art</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group"><label>Size</label><input type="text" id="f-size"
+                            placeholder="e.g. 24x36 inches"></div>
+                    <div class="form-group"><label>Delivery/Deadline Date</label><input type="date" id="f-date"
+                            required></div>
+
+                    <div class="form-group"><label>Project (Total Amount ₹)</label><input type="number" id="f-total"
+                            oninput="app.calculateRemaining()" required></div>
+                    <div class="form-group"><label>Advance (₹)</label><input type="number" id="f-advance"
+                            oninput="app.calculateRemaining()" required></div>
+
+                    <div class="form-group"><label>Remaining Amount (₹)</label><input type="number" id="f-remaining"
+                            readonly style="background: rgba(255,255,255,0.02); color: var(--warning);"></div>
+                    <div class="form-group"><label>Status</label>
+                        <select id="f-status">
+                            <option value="Pending">Pending</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Confirmation Pending">Confirmation Pending</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group"><label>Stage</label>
+                        <select id="f-stage">
+                            <option value="" disabled selected>Select Stage</option>
+                            <option value="in colour booth">in colour booth</option>
+                            <option value="on hand brijesh">on hand brijesh</option>
+                            <option value="on hand agency">on hand agency</option>
+                            <option value="Confirmation Panding">Confirmation Panding</option>
+                            <option value="on hand Arto">on hand Arto</option>
+                            <option value="Delivered">Delivered</option>
+                            <option value="Delivery Stage">Delivery Stage</option>
+                            <option value="on Client Confirmation">on Client Confirmation</option>
+                        </select>
+                    </div>
+                    <div class="form-group"><label>Assigned To</label>
+                        <select id="f-assign">
+                            <!-- JS populated -->
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 15px;">
+                    <label>Description / Artwork Details</label>
+                    <textarea id="f-desc" rows="2" placeholder="Brief description of the art piece..."
+                        required></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Stage Note</label>
+                    <input type="text" id="f-stagenote" placeholder="Any specific note for this stage...">
+                </div>
+
+                <!-- <div class="form-group">
+                    <label>Payments</label>
+                    <div id="payments-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;color:var(--text-muted);">
+                         Populated by JS -->
+                <!--</div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                        <input type="number" id="p-amount" placeholder="Amount (₹)" style="width:140px;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.03);background:rgba(255,255,255,0.02);color:var(--text-light);">
+                        <input type="date" id="p-date" style="padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.03);background:rgba(255,255,255,0.02);color:var(--text-light);">
+                        <input type="text" id="p-note" placeholder="Note (optional)" style="flex:1;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.03);background:rgba(255,255,255,0.02);color:var(--text-light);">
+                        <button type="button" class="btn-primary" onclick="app.addPaymentFromModal()" style="padding:8px 12px;">Add Payment</button>
+                    </div>
+                </div> -->
+
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="app.closeModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal for Team/Team -->
+    <div id="team-modal" class="modal-overlay">
+        <div class="modal glass animate-pop">
+            <div class="modal-header">
+                <h2 id="team-modal-title">Add Team Member</h2>
+                <button class="btn-icon" onclick="app.closeTeamModal()"><i class='bx bx-x'></i></button>
+            </div>
+            <form id="team-form">
+                <input type="hidden" id="t-id">
+                <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" id="t-name" required placeholder="e.g. Rahul Kumar">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Role</label>
+                        <select id="t-role">
+                            <option value="Team">Team</option>
+                            <option value="Manager">Manager</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Phone Number</label>
+                        <br>
+                        <input type="tel" id="t-phone" required placeholder="9876543210" style="width: 100%;">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="app.closeTeamModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Save Member</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal for Quick Assign -->
+    <div id="assign-modal" class="modal-overlay">
+        <div class="modal glass animate-pop" style="max-width: 400px;">
+            <div class="modal-header" style="margin-bottom: 15px;">
+                <h2 id="assign-modal-title">Assign Task</h2>
+                <button class="btn-icon" onclick="app.closeAssignModal()"><i class='bx bx-x'></i></button>
+            </div>
+            <div>
+                <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 15px;">Select a specific member from
+                    the Team Directory to assign this task to.</p>
+                <div id="assign-member-list" style="display: flex; flex-direction: column; gap: 10px;">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Alert Modal -->
+    <div id="custom-alert" class="modal-overlay">
+        <div class="modal glass animate-pop" style="max-width: 350px; text-align: center; padding: 30px;">
+            <div style="font-size: 40px; color: var(--warning); margin-bottom: 15px;"><i class='bx bx-error-circle'></i>
+            </div>
+            <h3 style="margin-bottom: 15px;" id="custom-alert-title">Notice</h3>
+            <p id="custom-alert-msg" style="color: var(--text-muted); font-size: 14px; margin-bottom: 25px;"></p>
+            <button class="btn-primary" style="width: 100%; justify-content: center;"
+                onclick="app.closeAlert()">OK</button>
+        </div>
+    </div>
+
+    <!-- Persistent Notification Modal -->
+    <div id="persistent-notification" class="modal-overlay">
+        <div class="modal glass animate-pop" style="max-width: 400px; text-align: center; padding: 30px;">
+            <div style="font-size: 40px; color: var(--primary); margin-bottom: 15px;"><i class='bx bx-bell bx-tada'></i>
+            </div>
+            <h3 style="margin-bottom: 15px;" id="pn-title">New Notification</h3>
+            <p id="pn-msg" style="color: var(--text-muted); font-size: 14px; margin-bottom: 25px;"></p>
+            <button class="btn-primary" style="width: 100%; justify-content: center;"
+                onclick="app.acceptNotification()">Accept</button>
+        </div>
+    </div>
+
+    <!-- Custom Confirm Modal -->
+    <div id="custom-confirm" class="modal-overlay">
+        <div class="modal glass animate-pop" style="max-width: 350px; text-align: center; padding: 30px;">
+            <div style="font-size: 40px; color: var(--danger); margin-bottom: 15px;"><i class='bx bx-trash'></i></div>
+            <h3 style="margin-bottom: 15px;" id="custom-confirm-title">Confirm Action</h3>
+            <p id="custom-confirm-msg" style="color: var(--text-muted); font-size: 14px; margin-bottom: 25px;"></p>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn-secondary" style="flex: 1;" onclick="app.closeConfirm(false)">Cancel</button>
+                <button class="btn-primary"
+                    style="flex: 1; justify-content: center; background: var(--danger); box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);"
+                    onclick="app.closeConfirm(true)">Yes, Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Intl-Tel-Input JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/js/intlTelInput.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/js/utils.js"></script>
+
+    <script type="module" src="app.js"></script>
+</body>
+
+</html>
