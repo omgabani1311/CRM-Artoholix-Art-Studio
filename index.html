@@ -7,7 +7,7 @@
     <title>Art Studio CRM</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css?v=3">
-    <link href='https://unpkg.com/b oxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
     <!-- Intl-Tel-Input CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/css/intlTelInput.css" />
 </head>
@@ -25,7 +25,8 @@
                 <div
                     style="display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 15px;">
                     <!-- <i class='bx bxs-palette' style="margin-bottom: 0;"></i> -->
-                    <img id="logo-login" src="https://res.cloudinary.com/dzgc4sghz/image/upload/v1773142856/logo_white_c01abm.png"
+                    <img id="logo-login"
+                        src="https://res.cloudinary.com/dzgc4sghz/image/upload/v1773142856/logo_white_c01abm.png"
                         alt="Artis Logo">
                 </div>
                 <p>Welcome! Select your role to continue</p>
@@ -73,7 +74,8 @@
             <div class="sidebar-header">
                 <!-- <i class='bx bxs-palette'></i> -->
                 <!-- <h2>Artis</h2> -->
-                <img id="logo-sidebar" src="https://res.cloudinary.com/dzgc4sghz/image/upload/v1773142856/logo_white_c01abm.png" alt="">
+                <img id="logo-sidebar"
+                    src="https://res.cloudinary.com/dzgc4sghz/image/upload/v1773142856/logo_white_c01abm.png" alt="">
             </div>
             <ul class="nav-links">
                 <li class="nav-item active" data-page="dashboard" onclick="app.navigate('dashboard')">
@@ -332,9 +334,11 @@
                             <h3 style="margin: 30px 0 20px; color: var(--primary);">Theme</h3>
                             <div style="display: flex; gap: 15px; margin-bottom: 20px;">
                                 <label style="display: flex; align-items: center; gap: 8px;"><input type="radio"
-                                        name="theme" value="dark" onchange="app.switchTheme(this.value)" checked> Dark Glass</label>
+                                        name="theme" value="dark" onchange="app.switchTheme(this.value)" checked> Dark
+                                    Glass</label>
                                 <label style="display: flex; align-items: center; gap: 8px;"><input type="radio"
-                                        name="theme" value="light" onchange="app.switchTheme(this.value)"> Light Minimal</label>
+                                        name="theme" value="light" onchange="app.switchTheme(this.value)"> Light
+                                    Minimal</label>
                             </div>
                             <button class="btn-secondary"
                                 onclick="app.showAlert('Settings saved successfully!', 'Success')">Save
