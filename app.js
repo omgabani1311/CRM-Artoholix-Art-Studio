@@ -44,6 +44,7 @@ class ArtStudioCRM {
         this.followUps = [];
         this.teamMembers = [];
         this.passwords = {};
+        this.paymentReminders = [];
         this.currentAssignTaskId = null;
         this.confirmCallback = null;
         this.searchQuery = '';
@@ -89,6 +90,16 @@ class ArtStudioCRM {
 
         const tPhone = document.querySelector("#t-phone");
         if (tPhone) this.tIti = window.intlTelInput(tPhone, itiOptions);
+
+        // Restore theme
+        const savedTheme = localStorage.getItem('artis_crm_theme') || 'dark';
+        this.switchTheme(savedTheme);
+        
+        // Update the radio buttons to reflect the current theme
+        const themeRadios = document.querySelectorAll('input[name="theme"]');
+        themeRadios.forEach(r => {
+            if (r.value === savedTheme) r.checked = true;
+        });
     }
 
     populateCityDropdown() {
@@ -366,6 +377,9 @@ class ArtStudioCRM {
     }
 
     loadData() {
+        const storedReminders = localStorage.getItem('artis_crm_reminders');
+        this.paymentReminders = storedReminders ? JSON.parse(storedReminders) : [];
+
         const stored = localStorage.getItem('artis_crm_data');
         if (stored) {
             this.followUps = JSON.parse(stored);
@@ -415,7 +429,7 @@ class ArtStudioCRM {
         if (storedPass) {
             this.passwords = JSON.parse(storedPass);
         } else {
-            this.passwords = { Owner: 'Owner@123', Manager: 'Manager@123', Team: 'Team@1234' };
+            this.passwords = { Owner: 'Owner@123', Manager: 'Manager@123' };
             localStorage.setItem('artis_crm_passwords', JSON.stringify(this.passwords));
         }
     }
@@ -472,27 +486,22 @@ class ArtStudioCRM {
         const ownerLinks = document.querySelectorAll('.restricted.owner-only');
         const passBlock = document.getElementById('settings-password-block');
 
-        // Team role doesn't need to see the password change block
-        if (passBlock) {
-            if (this.currentUser === 'Team') {
-                passBlock.style.display = 'none';
-            } else {
-                passBlock.style.display = 'block';
-            }
-        }
-
         if (this.currentUser === 'Team') {
             mgmtLinks.forEach(el => el.style.display = 'none');
             ownerLinks.forEach(el => el.style.display = 'none');
+            if (passBlock) passBlock.style.display = 'none';
         } else if (this.currentUser === 'Manager') {
             mgmtLinks.forEach(el => el.style.display = 'flex');
             ownerLinks.forEach(el => el.style.display = 'none');
+            if (passBlock) passBlock.style.display = 'block';
         } else {
             mgmtLinks.forEach(el => el.style.display = 'flex');
             ownerLinks.forEach(el => el.style.display = 'flex');
+            if (passBlock) passBlock.style.display = 'block';
         }
 
         // Before actually navigating, check for any pending notifications targeted to this user
+        this.updateReminderBadge();
         const resumeNavigation = () => { this.navigate('dashboard'); };
         const pendingShown = this.processPendingNotificationsOnLoad();
         if (pendingShown) {
@@ -504,7 +513,7 @@ class ArtStudioCRM {
     }
 
     navigate(pageId) {
-        if (this.currentUser === 'Team' && (pageId === 'clients' || pageId === 'analytics' || pageId === 'team')) {
+        if (this.currentUser === 'Team' && (pageId === 'clients' || pageId === 'analytics' || pageId === 'team' || pageId === 'reminders')) {
             this.showAlert('You do not have permission to view this page.', 'Access Denied');
             return;
         }
@@ -525,13 +534,14 @@ class ArtStudioCRM {
             this.renderFollowUpsPreview();
         } else if (pageId === 'followups') {
             this.renderFollowUpsFull();
-            this.renderReminderLog();
         } else if (pageId === 'team') {
             this.renderTeam();
         } else if (pageId === 'clients') {
             this.renderClients();
         } else if (pageId === 'analytics') {
             this.renderAnalytics();
+        } else if (pageId === 'reminders') {
+            this.renderReminders();
         } else if (pageId === 'settings') {
             const passMsg = document.getElementById('pass-msg');
             if (passMsg) {
@@ -540,7 +550,6 @@ class ArtStudioCRM {
             }
             const passForm = document.getElementById('change-pass-form');
             if (passForm) passForm.reset();
-            this.loadProfileSettings();
         }
     }
 
@@ -596,8 +605,7 @@ class ArtStudioCRM {
     }
 
     isAmountVisible() {
-        // Change 2: Manager can now also see payment details on dashboard
-        return this.currentUser === 'Owner' || this.currentUser === 'Manager';
+        return this.currentUser === 'Owner';
     }
 
     renderAnalytics() {
@@ -795,20 +803,19 @@ class ArtStudioCRM {
                 }
 
                 let clickAttr = '';
-                // Change 1: Manager can also click to edit dashboard cards
-                if (this.currentUser === 'Owner' || this.currentUser === 'Manager') clickAttr = `onclick="app.editModal(${item.id})" style="cursor: pointer;" title="Click to Edit"`;
+                if (this.currentUser === 'Owner') clickAttr = `onclick="app.editModal(${item.id})" style="cursor: pointer;" title="Click to Edit"`;
 
                 // Show a quick 'Mark Completed' button to Manager/Team when the task is assigned to them
                 let completeBtnHtml = '';
                 try {
                     const assignedRole = item.assign ? item.assign.split(':')[0].trim() : '';
                     if ((this.currentUser === 'Manager' || this.currentUser === 'Team') && item.status !== 'Completed' && assignedRole === this.currentUser) {
-                        completeBtnHtml = `<button class="btn-quick complete" onclick="event.stopPropagation(); app.markCompleted(${item.id})" title="Mark Completed" style="background:var(--success); color:#fff; padding:8px 14px; border-radius:8px; font-size:13px; font-weight:600; box-shadow: 0 4px 10px rgba(16,185,129,0.3); border: none;"><i class='bx bx-check-circle' style="font-size: 16px; transform: translateY(2px);"></i> Mark Completed</button>`;
+                        completeBtnHtml = `<button class="btn-quick complete" onclick="event.stopPropagation(); app.markCompleted(${item.id})" title="Mark Completed" style="background:var(--success); color:#000; padding:6px 10px; border-radius:6px; font-size:12px;">✓ Completed</button>`;
                     }
                 } catch (e) { completeBtnHtml = ''; }
 
                 const displayNumber = idx + 1;
-                const numberBadge = (this.currentUser === 'Owner' || this.currentUser === 'Manager') ? `<div class="client-card-badge">${displayNumber}</div>` : '';
+                const numberBadge = (this.currentUser === 'Owner') ? `<div class="client-card-badge">${displayNumber}</div>` : '';
 
                 html += `
                 <div class="client-card ${urgencyClass}" ${clickAttr}>
@@ -816,7 +823,7 @@ class ArtStudioCRM {
                     ${numberBadge}
                     
                     <div style="font-size: 11px; font-weight: 600; color: var(--primary); margin-bottom: 4px; margin-top: 5px; text-transform: uppercase; letter-spacing: 0.5px;" class="truncate-text">${item.style || 'Artwork Project'}</div>
-                    <div style="font-size: 16px; font-weight: 600; color: var(--text-light); margin-bottom: 5px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;" title="${item.desc}">${item.desc || 'No Title Provided'}</div>
+                    <div style="font-size: 16px; font-weight: 600; color: #fff; margin-bottom: 5px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;" title="${item.desc}">${item.desc || 'No Title Provided'}</div>
                     
                     <div style="color: var(--text-muted); font-size: 13px; margin-bottom: 4px; margin-top: 10px;"><i class='bx bx-user'></i> ${item.client || 'Unknown Client'}</div>
                     <div style="color: var(--text-muted); font-size: 12px; margin-bottom: 15px;"><i class='bx bx-phone'></i> ${item.contact || '-'}</div>
@@ -843,14 +850,26 @@ class ArtStudioCRM {
                             <i class='bx bx-time-five' style="color: var(--text-muted);"></i> 
                             <span>Due: ${item.date}</span>
                         </div>
+                        ${(item.status === 'Completed' && item.completedAt) ? (() => {
+                            const cd = new Date(item.completedAt); cd.setHours(0,0,0,0);
+                            const dd = Math.floor((today.getTime() - cd.getTime()) / (1000*60*60*24));
+                            const dc = dd > 30 ? 'var(--danger)' : dd > 7 ? '#ff7a00' : dd > 0 ? '#facc15' : 'var(--success)';
+                            return `<div style="font-size:12px; margin-bottom:6px; display:flex; align-items:center; gap:5px;"><i class='bx bx-check-circle' style="color:${dc};"></i> <span style="color:${dc}; font-weight:600;">Completed ${dd}d ago</span></div>`;
+                        })() : ''}
                     </div>
 
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); gap:8px;">
-                        <span style="display:flex; align-items:center; gap:8px;">
-                            <span class="f-status-pill ${statusClass}" style="font-size: 10px;">${item.status}</span>
-                            <span style="font-size: 11px; color: var(--text-muted);"><i class='bx bx-user-pin'></i> ${item.assign ? item.assign.split(':')[0] : 'Unassigned'}</span>
-                        </span>
-                        <span>${completeBtnHtml}</span>
+                    <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05);">
+                        <div style="display:flex; justify-content: space-between; align-items: center; gap:8px;">
+                            <span style="display:flex; align-items:center; gap:8px;">
+                                <span class="f-status-pill ${statusClass}" style="font-size: 10px;">${item.status}</span>
+                                <span style="font-size: 11px; color: var(--text-muted);"><i class='bx bx-user-pin'></i> ${item.assign ? item.assign.split(':')[0] : 'Unassigned'}</span>
+                            </span>
+                            <span>${completeBtnHtml}</span>
+                        </div>
+                        ${(this.currentUser === 'Owner' && (item.remaining > 0)) ? `
+                        <button onclick="event.stopPropagation(); app.sendPaymentReminder(${item.id})" title="Send WhatsApp Payment Reminder" style="background: linear-gradient(135deg,#25d366,#128c7e); color:#fff; padding:7px 10px; border-radius:8px; font-size:12px; display:flex; align-items:center; justify-content:center; gap:6px; width:100%; border:none; cursor:pointer; font-weight:600;">
+                            <i class='bx bxl-whatsapp' style='font-size:15px;'></i> Send Payment Reminder
+                        </button>` : ''}
                     </div>
                 </div>
                 `;
@@ -886,11 +905,10 @@ class ArtStudioCRM {
             }
 
             let clickAttr = '';
-            // Change 1: Manager can also edit via grid cards
-            if (this.currentUser === 'Owner' || this.currentUser === 'Manager') clickAttr = `onclick="app.editModal(${item.id})" style="cursor: pointer;" title="Click to Edit"`;
+            if (this.currentUser === 'Owner') clickAttr = `onclick="app.editModal(${item.id})" style="cursor: pointer;" title="Click to Edit"`;
 
             const displayNumber = idx + 1;
-            const numberBadge = (this.currentUser === 'Owner' || this.currentUser === 'Manager') ? `<div class="client-card-badge">${displayNumber}</div>` : '';
+            const numberBadge = (this.currentUser === 'Owner') ? `<div class="client-card-badge">${displayNumber}</div>` : '';
 
             gridHtml += `
             <div class="client-card ${urgencyClass}" ${clickAttr}>
@@ -898,7 +916,7 @@ class ArtStudioCRM {
                 ${numberBadge}
                 
                 <div style="font-size: 11px; font-weight: 600; color: var(--primary); margin-bottom: 4px; margin-top: 5px; text-transform: uppercase; letter-spacing: 0.5px;" class="truncate-text">${item.style || 'Artwork Project'}</div>
-                <div style="font-size: 16px; font-weight: 600; color: var(--text-light); margin-bottom: 5px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;" title="${item.desc}">${item.desc || 'No Title Provided'}</div>
+                <div style="font-size: 16px; font-weight: 600; color: #fff; margin-bottom: 5px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;" title="${item.desc}">${item.desc || 'No Title Provided'}</div>
                 
                 <div style="color: var(--text-muted); font-size: 13px; margin-bottom: 4px; margin-top: 10px;"><i class='bx bx-user'></i> ${item.client || 'Unknown Client'}</div>
                 <div style="color: var(--text-muted); font-size: 12px; margin-bottom: 15px;"><i class='bx bx-phone'></i> ${item.contact || '-'}</div>
@@ -925,14 +943,26 @@ class ArtStudioCRM {
                         <i class='bx bx-time-five' style="color: var(--text-muted);"></i> 
                         <span>Due: ${item.date}</span>
                     </div>
+                    ${(item.status === 'Completed' && item.completedAt) ? (() => {
+                        const cd = new Date(item.completedAt); cd.setHours(0,0,0,0);
+                        const dd = Math.floor((today.getTime() - cd.getTime()) / (1000*60*60*24));
+                        const dc = dd > 30 ? 'var(--danger)' : dd > 7 ? '#ff7a00' : dd > 0 ? '#facc15' : 'var(--success)';
+                        return `<div style="font-size:12px; margin-bottom:6px; display:flex; align-items:center; gap:5px;"><i class='bx bx-check-circle' style="color:${dc};"></i> <span style="color:${dc}; font-weight:600;">Completed ${dd}d ago</span></div>`;
+                    })() : ''}
                 </div>
 
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); gap:8px;">
-                    <span style="display:flex; align-items:center; gap:8px;">
-                        <span class="f-status-pill ${statusClass}" style="font-size: 10px;">${item.status}</span>
-                        <span style="font-size: 11px; color: var(--text-muted);"><i class='bx bx-user-pin'></i> ${item.assign ? item.assign.split(':')[0] : 'Unassigned'}</span>
-                    </span>
-                    <span>${(function(){ try{ const assignedRole = item.assign ? item.assign.split(':')[0].trim() : ''; if ((this.currentUser === 'Manager' || this.currentUser === 'Team') && item.status !== 'Completed' && assignedRole === this.currentUser) { return `<button class="btn-quick complete" onclick="event.stopPropagation(); app.markCompleted(${item.id})" title="Mark Completed" style="background:var(--success); color:#000; padding:6px 10px; border-radius:6px; font-size:12px;">✓ Completed</button>`; } } catch(e){} return ''; }).call(this)}</span>
+                <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05);">
+                    <div style="display:flex; justify-content: space-between; align-items: center; gap:8px;">
+                        <span style="display:flex; align-items:center; gap:8px;">
+                            <span class="f-status-pill ${statusClass}" style="font-size: 10px;">${item.status}</span>
+                            <span style="font-size: 11px; color: var(--text-muted);"><i class='bx bx-user-pin'></i> ${item.assign ? item.assign.split(':')[0] : 'Unassigned'}</span>
+                        </span>
+                        <span>${(function(){ try{ const assignedRole = item.assign ? item.assign.split(':')[0].trim() : ''; if ((this.currentUser === 'Manager' || this.currentUser === 'Team') && item.status !== 'Completed' && assignedRole === this.currentUser) { return `<button class="btn-quick complete" onclick="event.stopPropagation(); app.markCompleted(${item.id})" title="Mark Completed" style="background:var(--success); color:#000; padding:6px 10px; border-radius:6px; font-size:12px;">✓ Completed</button>`; } } catch(e){} return ''; }).call(this)}</span>
+                    </div>
+                    ${(this.currentUser === 'Owner' && (item.remaining > 0)) ? `
+                    <button onclick="event.stopPropagation(); app.sendPaymentReminder(${item.id})" title="Send WhatsApp Payment Reminder" style="background: linear-gradient(135deg,#25d366,#128c7e); color:#fff; padding:7px 10px; border-radius:8px; font-size:12px; display:flex; align-items:center; justify-content:center; gap:6px; width:100%; border:none; cursor:pointer; font-weight:600;">
+                        <i class='bx bxl-whatsapp' style='font-size:15px;'></i> Send Payment Reminder
+                    </button>` : ''}
                 </div>
             </div>
             `;
@@ -967,7 +997,6 @@ class ArtStudioCRM {
         today.setHours(0, 0, 0, 0);
 
         const showAmounts = this.currentUser === 'Owner';
-        const showPayReminder = this.currentUser !== 'Team';
 
         let tableHtml = `
             <div class="table-responsive">
@@ -986,11 +1015,10 @@ class ArtStudioCRM {
                             <th>Remaining (₹)</th>` : ''}
                             <th>Deadline</th>
                             <th>Status</th>
+                            <th style="white-space:nowrap;">Days Since<br>Completed</th>
                             <th>Stage</th>
                             <th>Stage Note</th>
                             <th>Assignee</th>
-                            ${showPayReminder ? `<th style="min-width:120px;">💬 Pay Reminder</th>` : ''}
-                            <th style="min-width:130px;">⏱ Payment Due</th>
                             <th class="actions-cell">Actions</th>
                             <th>Description</th>
                         </tr>
@@ -1033,7 +1061,7 @@ class ArtStudioCRM {
                 try {
                     const assignedRole = item.assign ? item.assign.split(':')[0].trim() : '';
                     if (assignedRole === this.currentUser && item.status !== 'Completed') {
-                        quickAssignHtml = `<button class="btn-quick complete" onclick="event.stopPropagation(); app.markCompleted(${item.id})" title="Mark Completed" style="background:var(--success); color:#fff; padding:8px 14px; border-radius:8px; font-size:13px; font-weight:600; box-shadow: 0 4px 10px rgba(16,185,129,0.3); border: none;"><i class='bx bx-check-circle' style="font-size: 16px; transform: translateY(2px);"></i> Mark Completed</button>`;
+                        quickAssignHtml = `<button class="btn-quick complete" onclick="event.stopPropagation(); app.markCompleted(${item.id})" title="Mark Completed">✓ Completed</button>`;
                     } else {
                         quickAssignHtml = '';
                     }
@@ -1046,46 +1074,27 @@ class ArtStudioCRM {
                 cardAttributes = `onclick="app.editModal(${item.id})" style="cursor: pointer;" title="Click to Edit"`;
             }
 
-            // ---- Payment Reminder button ----
-            const hasContact = item.contact && item.contact.replace(/[^0-9]/g, '').length >= 10;
-            const remainingAmt = parseFloat(item.remaining) || 0;
-            let payReminderHtml = '';
-            if (remainingAmt > 0 && hasContact) {
-                payReminderHtml = `<button class="btn-quick" style="background:rgba(37,211,102,0.12);border-color:rgba(37,211,102,0.3);color:#25d366;white-space:nowrap;" onclick="event.stopPropagation(); app.sendPaymentReminder(${item.id})" title="Send WhatsApp Payment Reminder"><i class='bx bxl-whatsapp' style='font-size:15px;'></i> Remind</button>`;
-            } else if (remainingAmt <= 0) {
-                payReminderHtml = `<span style="color:var(--success);font-size:12px;"><i class='bx bx-check-circle'></i> Paid</span>`;
-            } else {
-                payReminderHtml = `<span style="color:var(--text-muted);font-size:11px;">No Contact</span>`;
+            // Calculate days since completed
+            let daysSinceCompletedHtml = '-';
+            if (item.status === 'Completed' && item.completedAt) {
+                const completedDate = new Date(item.completedAt);
+                completedDate.setHours(0, 0, 0, 0);
+                const diffMs = today.getTime() - completedDate.getTime();
+                const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                let dayColor = 'var(--success)';
+                let dayIcon = '🟢';
+                if (diffDays > 30) { dayColor = 'var(--danger)'; dayIcon = '🔴'; }
+                else if (diffDays > 7) { dayColor = '#ff7a00'; dayIcon = '🟠'; }
+                else if (diffDays > 0) { dayColor = '#facc15'; dayIcon = '🟡'; }
+                daysSinceCompletedHtml = `<span style="color:${dayColor}; font-weight:600; font-size:13px;">${dayIcon} ${diffDays}d ago</span>`;
+            } else if (item.status === 'Completed') {
+                daysSinceCompletedHtml = `<span style="color:var(--success); font-weight:600;">✓ Done</span>`;
             }
 
-            // ---- Payment Due Timeline badge ----
-            let dueBadgeHtml = '';
-            if (remainingAmt <= 0) {
-                dueBadgeHtml = `<span style="background:rgba(16,185,129,0.15);color:var(--success);padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid rgba(16,185,129,0.3);"><i class='bx bx-check-double'></i> Fully Paid</span>`;
-            } else if (item.status === 'Completed') {
-                // Completed but still has remaining — calculate days since completion
-                const compDate = item.completedAt ? new Date(item.completedAt) : new Date(item.date);
-                compDate.setHours(0, 0, 0, 0);
-                const overdueDays = Math.floor((today.getTime() - compDate.getTime()) / (1000 * 60 * 60 * 24));
-                if (overdueDays <= 0) {
-                    dueBadgeHtml = `<span style="background:rgba(245,158,11,0.15);color:var(--warning);padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid rgba(245,158,11,0.3);"><i class='bx bx-time'></i> Due Today</span>`;
-                } else {
-                    dueBadgeHtml = `<span style="background:rgba(239,68,68,0.15);color:var(--danger);padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid rgba(239,68,68,0.3);" title="Completed on ${compDate.toDateString()}"><i class='bx bx-error-circle'></i> ${overdueDays}d overdue</span>`;
-                }
-            } else {
-                // Not yet completed — show days remaining until deadline
-                const deadlineDate = new Date(item.date);
-                deadlineDate.setHours(0, 0, 0, 0);
-                const daysLeft = Math.ceil((deadlineDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-                if (daysLeft < 0) {
-                    dueBadgeHtml = `<span style="background:rgba(239,68,68,0.15);color:var(--danger);padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid rgba(239,68,68,0.3);"><i class='bx bx-alarm-exclamation'></i> ${Math.abs(daysLeft)}d past due</span>`;
-                } else if (daysLeft === 0) {
-                    dueBadgeHtml = `<span style="background:rgba(245,158,11,0.2);color:var(--warning);padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid rgba(245,158,11,0.4);"><i class='bx bx-time'></i> Due Today</span>`;
-                } else if (daysLeft <= 5) {
-                    dueBadgeHtml = `<span style="background:rgba(255,122,0,0.15);color:#ff7a00;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid rgba(255,122,0,0.3);"><i class='bx bx-timer'></i> ${daysLeft}d left</span>`;
-                } else {
-                    dueBadgeHtml = `<span style="background:rgba(59,130,246,0.12);color:#60a5fa;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid rgba(59,130,246,0.2);"><i class='bx bx-calendar'></i> ${daysLeft}d left</span>`;
-                }
+            // Payment reminder button (WhatsApp)
+            let payReminderHtml = '';
+            if (this.currentUser === 'Owner' && item.remaining > 0) {
+                payReminderHtml = `<button class="btn-quick" onclick="event.stopPropagation(); app.sendPaymentReminder(${item.id})" title="Send WhatsApp Payment Reminder" style="background: linear-gradient(135deg,#25d366,#128c7e); color:#fff; padding:5px 9px; border-radius:6px; font-size:11px; display:flex; align-items:center; gap:4px; white-space:nowrap;"><i class='bx bxl-whatsapp' style='font-size:14px;'></i> Pay Reminder</button>`;
             }
 
             tableHtml += `
@@ -1102,14 +1111,14 @@ class ArtStudioCRM {
                     <td style="color: var(--danger);">₹${item.remaining || 0}</td>` : ''}
                     <td>${item.date}</td>
                     <td><span class="f-status-pill ${statusClass}">${item.status}</span></td>
+                    <td style="text-align: center;">${daysSinceCompletedHtml}</td>
                     <td style="font-weight: 500;">${item.stage || '-'}</td>
                     <td><div class="truncate-text" title="${item.stagenote}">${item.stagenote || '-'}</div></td>
                     <td><i class='bx bx-user-pin'></i> ${item.assign}</td>
-                    ${showPayReminder ? `<td>${payReminderHtml}</td>` : ''}
-                    <td>${dueBadgeHtml}</td>
                     <td>
-                        <div style="display: flex; gap: 8px;">
+                        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
                             ${quickAssignHtml}
+                            ${payReminderHtml}
                         </div>
                     </td>
                     <td><div class="truncate-text" title="${item.desc}">${item.desc}</div></td>
@@ -1121,148 +1130,199 @@ class ArtStudioCRM {
         container.innerHTML = tableHtml;
     }
 
-    // ==========================================
-    // Payment Reminder via WhatsApp
-    // ==========================================
-    sendPaymentReminder(itemId) {
-        const item = this.followUps.find(f => f.id === itemId);
+    sendPaymentReminder(taskId) {
+        const item = this.followUps.find(f => f.id === taskId);
         if (!item) return;
 
-        const phone = item.contact ? item.contact.replace(/[^0-9]/g, '') : '';
-        if (!phone || phone.length < 10) {
-            this.showAlert('No valid phone number saved for this client. Please update their contact in the follow-up.', 'Cannot Send Reminder');
+        const phone = item.contact || '';
+        if (!phone || phone === '-') {
+            this.showAlert('No valid phone number found for this client. Please update their contact details first.', 'Cannot Send Reminder');
             return;
+        }
+
+        const waNum = phone.replace(/[^0-9]/g, '');
+        if (waNum.length < 10) {
+            this.showAlert('The phone number is too short or invalid. It must have at least 10 digits.', 'Invalid Number');
+            return;
+        }
+
+        // Calculate days since completed
+        let daysSinceNote = '';
+        let daysSinceCount = null;
+        if (item.completedAt) {
+            const completedDate = new Date(item.completedAt);
+            const today = new Date();
+            const diffMs = today.getTime() - completedDate.getTime();
+            daysSinceCount = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+            daysSinceNote = `\n🗓️ Project completed ${daysSinceCount} day(s) ago.`;
         }
 
         const remaining = parseFloat(item.remaining) || 0;
-        if (remaining <= 0) {
-            this.showAlert('This project is fully paid. No reminder needed!', 'Already Paid ✓');
-            return;
-        }
-
-        // Build the message
-        const dueInfo = item.status === 'Completed'
-            ? `Your artwork has been completed and is ready.`
-            : `Your project is currently in progress (Deadline: ${item.date}).`;
+        const total = parseFloat(item.total) || 0;
+        const advance = parseFloat(item.advance) || 0;
 
         const msg =
-`Hello ${item.client} 👋,
+`Hello ${item.client} 🙏,
 
-Warm regards from *Artoholix Art Studio* ✨
+This is a friendly payment reminder from *Artis Studio*.
 
-${dueInfo}
+🎨 *Project Details:*
+• Art Style: ${item.style || '-'}
+• Size: ${item.size || '-'}
+• Description: ${item.desc || '-'}${daysSinceNote}
 
-📋 Project Details:
-• Art Style: ${item.style || 'N/A'}
-• Size: ${item.size || 'N/A'}
-• Total Amount: ₹${item.total || 0}
-• Amount Paid: ₹${item.advance || 0}
-• *Remaining Balance: ₹${remaining}*
+💰 *Payment Summary:*
+• Total Amount: ₹${total.toLocaleString('en-IN')}
+• Advance Paid: ₹${advance.toLocaleString('en-IN')}
+• *Remaining Due: ₹${remaining.toLocaleString('en-IN')}*
 
-We kindly request you to complete the remaining payment at your earliest convenience so we can proceed further.
+Kindly arrange the remaining payment at your earliest convenience. Thank you for choosing Artis Studio! 🌟`;
 
-For any queries, please feel free to reach out. We look forward to serving you! 🎨
-
-Thank you,
-*Artoholix Art Studio Team*`;
-
-        window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
-
-        // ---- Log this reminder ----
-        const log = JSON.parse(localStorage.getItem('artis_reminder_log') || '[]');
-        // Avoid duplicate log entries within the same minute
-        const nowTs = Date.now();
-        log.push({
-            ts: nowTs,
-            clientId: item.id,
+        // ── Log this reminder in the sent-reminders history ──
+        const logEntry = {
+            id: Date.now(),
+            taskId: item.id,
             client: item.client,
             contact: item.contact,
-            style: item.style || 'N/A',
+            style: item.style || '-',
+            size: item.size || '-',
+            total: total,
+            advance: advance,
             remaining: remaining,
-            status: item.status,
-            sentBy: this.currentUser
-        });
-        localStorage.setItem('artis_reminder_log', JSON.stringify(log));
-        this.renderReminderLog();
+            sentAt: new Date().toISOString(),
+            sentBy: this.currentUser,
+            daysSinceCompleted: daysSinceCount,
+            projectStatus: item.status
+        };
+        if (!Array.isArray(this.paymentReminders)) this.paymentReminders = [];
+        this.paymentReminders.unshift(logEntry); // newest first
+        localStorage.setItem('artis_crm_reminders', JSON.stringify(this.paymentReminders));
+
+        // Update badge count on sidebar
+        this.updateReminderBadge();
+
+        window.open(`https://wa.me/${waNum}?text=${encodeURIComponent(msg)}`, '_blank');
+        this.showAlert(`Payment reminder sent to ${item.client} via WhatsApp! Logged under "Reminders Sent".`, 'Reminder Sent ✅');
     }
 
-    renderReminderLog() {
-        const wrapper = document.getElementById('reminder-log-section');
-        if (wrapper) {
-            wrapper.style.display = (this.currentUser === 'Team') ? 'none' : 'block';
+    updateReminderBadge() {
+        const badge = document.getElementById('reminder-count-badge');
+        if (badge) {
+            badge.textContent = (this.paymentReminders || []).length;
+            badge.style.display = (this.paymentReminders || []).length > 0 ? 'inline-flex' : 'none';
         }
-
-        const container = document.getElementById('reminder-log-container');
-        if (!container) return;
-
-        const log = JSON.parse(localStorage.getItem('artis_reminder_log') || '[]');
-        if (log.length === 0) {
-            container.innerHTML = `<p style="color:var(--text-muted); font-size:14px; text-align:center; padding:20px 0;">
-                <i class='bx bx-info-circle'></i> No payment reminders sent yet. Use the <strong style="color:#25d366;">Remind</strong> button in the Follow-ups table to send one.
-            </p>`;
-            return;
-        }
-
-        // Group by client name (case-insensitive)
-        const grouped = {};
-        [...log].reverse().forEach(entry => {
-            const key = entry.client.trim().toLowerCase();
-            if (!grouped[key]) grouped[key] = { name: entry.client, contact: entry.contact, style: entry.style, entries: [] };
-            grouped[key].entries.push(entry);
-        });
-
-        let html = `<div style="display:flex; flex-direction:column; gap:14px;">`;
-
-        Object.values(grouped).forEach(group => {
-            const latestEntry = group.entries[0];
-            const count = group.entries.length;
-
-            const timelineItems = group.entries.map(e => {
-                const d = new Date(e.ts);
-                const dateStr = d.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
-                const timeStr = d.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
-                return `<div style="display:flex; align-items:center; gap:10px; font-size:12px; color:var(--text-muted); padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.04);">
-                    <i class='bx bx-time-five' style="color:#25d366;"></i>
-                    <span>${dateStr} at ${timeStr}</span>
-                    <span style="margin-left:auto; color:var(--warning);">₹${e.remaining} due</span>
-                    <span style="color:var(--text-muted); font-size:11px;">by ${e.sentBy}</span>
-                </div>`;
-            }).join('');
-
-            html += `
-            <div style="background:rgba(37,211,102,0.04); border:1px solid rgba(37,211,102,0.15); border-left:4px solid #25d366; border-radius:10px; padding:16px 20px;">
-                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
-                    <div>
-                        <div style="font-size:15px; font-weight:600; color:var(--text-light);">
-                            <i class='bx bx-user' style="color:#25d366;"></i> ${group.name}
-                        </div>
-                        <div style="font-size:12px; color:var(--text-muted); margin-top:3px;">
-                            <i class='bx bx-phone'></i> ${group.contact || '-'} &nbsp;|&nbsp;
-                            <i class='bx bx-palette'></i> ${group.style}
-                        </div>
-                    </div>
-                    <div style="display:flex; gap:8px; align-items:center;">
-                        <span style="background:rgba(37,211,102,0.15); color:#25d366; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:600;">
-                            ${count} reminder${count > 1 ? 's' : ''} sent
-                        </span>
-                        <span style="background:rgba(239,68,68,0.12); color:var(--danger); padding:4px 12px; border-radius:20px; font-size:12px; font-weight:600; border:1px solid rgba(239,68,68,0.2);">
-                            ₹${latestEntry.remaining} pending
-                        </span>
-                    </div>
-                </div>
-                <div style="display:flex; flex-direction:column; gap:2px;">${timelineItems}</div>
-            </div>`;
-        });
-
-        html += `</div>`;
-        container.innerHTML = html;
     }
 
     clearReminderLog() {
-        this.showConfirm('Are you sure you want to clear the entire payment reminder log?', () => {
-            localStorage.removeItem('artis_reminder_log');
-            this.renderReminderLog();
-        }, 'Clear Reminder Log?');
+        this.showConfirm('Are you sure you want to clear the entire payment reminder history? This cannot be undone.', () => {
+            this.paymentReminders = [];
+            localStorage.setItem('artis_crm_reminders', JSON.stringify([]));
+            this.updateReminderBadge();
+            this.renderReminders();
+        }, 'Clear Reminder Log');
+    }
+
+    renderReminders() {
+        const container = document.getElementById('reminders-content');
+        if (!container) return;
+
+        const reminders = this.paymentReminders || [];
+
+        if (reminders.length === 0) {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 60px 20px; color: var(--text-muted);">
+                    <div style="font-size: 60px; margin-bottom: 20px;">💬</div>
+                    <h3 style="color: var(--text-light); margin-bottom: 10px;">No Reminders Sent Yet</h3>
+                    <p style="font-size: 14px;">When you send a WhatsApp payment reminder from the Follow-ups page, it will appear here.</p>
+                </div>
+            `;
+            return;
+        }
+
+        // Group by client name for summary
+        const clientSummary = {};
+        reminders.forEach(r => {
+            const key = (r.client || '').toLowerCase().trim();
+            if (!clientSummary[key]) clientSummary[key] = { name: r.client, count: 0, lastSent: r.sentAt, remaining: r.remaining, contact: r.contact };
+            clientSummary[key].count++;
+            // keep the latest sentAt
+            if (r.sentAt > clientSummary[key].lastSent) clientSummary[key].lastSent = r.sentAt;
+        });
+
+        let html = `
+            <div class="glass" style="padding: 20px; margin-bottom: 24px; border-left: 3px solid var(--primary);">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                    <div>
+                        <h3 style="color: var(--primary); margin-bottom: 4px;">📊 Summary</h3>
+                        <p style="color: var(--text-muted); font-size: 13px;">${reminders.length} reminder(s) sent to ${Object.keys(clientSummary).length} unique client(s)</p>
+                    </div>
+                    <button class="btn-secondary" onclick="app.clearReminderLog()" style="padding: 8px 16px; font-size: 13px; color: var(--danger); border-color: var(--danger);">
+                        <i class='bx bx-trash'></i> Clear Log
+                    </button>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="artis-table" style="min-width: 900px;">
+                    <thead>
+                        <tr>
+                            <th style="width: 30px; text-align: center;">No.</th>
+                            <th>Client Name</th>
+                            <th>Contact</th>
+                            <th>Art Style</th>
+                            <th>Project (₹)</th>
+                            <th>Advance (₹)</th>
+                            <th style="color: var(--danger);">Remaining (₹)</th>
+                            <th>Sent At</th>
+                            <th>Sent By</th>
+                            <th>Days Since Completed</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        reminders.forEach((r, idx) => {
+            const sentDate = new Date(r.sentAt);
+            const sentDateStr = sentDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+            const sentTimeStr = sentDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+
+            // How many times this client has been reminded
+            const key = (r.client || '').toLowerCase().trim();
+            const timesCount = clientSummary[key] ? clientSummary[key].count : 1;
+            const timesHtml = timesCount > 1 ? `<span style="background: var(--warning); color: #000; font-size: 10px; padding: 2px 6px; border-radius: 10px; font-weight: 700; margin-left: 6px;">${timesCount}x</span>` : '';
+
+            const daysBadge = r.daysSinceCompleted !== null && r.daysSinceCompleted !== undefined
+                ? `<span style="color: ${r.daysSinceCompleted > 30 ? 'var(--danger)' : r.daysSinceCompleted > 7 ? '#ff7a00' : '#facc15'}; font-weight: 600;">${r.daysSinceCompleted}d</span>`
+                : `<span style="color: var(--text-muted);">-</span>`;
+
+            const waNum = (r.contact || '').replace(/[^0-9]/g, '');
+            const canResend = waNum.length >= 10;
+
+            html += `
+                <tr style="transition: 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.04)'" onmouseout="this.style.background='transparent'">
+                    <td style="text-align: center; color: var(--text-muted); font-weight: 600;">${idx + 1}</td>
+                    <td style="font-weight: 700; color: #fff;">${r.client || '-'}${timesHtml}</td>
+                    <td style="color: var(--text-muted);">${r.contact || '-'}</td>
+                    <td>${r.style || '-'}</td>
+                    <td style="color: var(--primary); font-weight: 600;">₹${(r.total||0).toLocaleString('en-IN')}</td>
+                    <td style="color: var(--success);">₹${(r.advance||0).toLocaleString('en-IN')}</td>
+                    <td style="color: var(--danger); font-weight: 700;">₹${(r.remaining||0).toLocaleString('en-IN')}</td>
+                    <td>
+                        <div style="font-weight: 600; font-size: 13px;">${sentDateStr}</div>
+                        <div style="color: var(--text-muted); font-size: 11px;">${sentTimeStr}</div>
+                    </td>
+                    <td><span class="badge">${r.sentBy || '-'}</span></td>
+                    <td style="text-align: center;">${daysBadge}</td>
+                    <td>
+                        ${canResend ? `<button onclick="app.sendPaymentReminder(${r.taskId})" style="background: linear-gradient(135deg,#25d366,#128c7e); color:#fff; padding:5px 10px; border-radius:6px; font-size:11px; display:flex; align-items:center; gap:4px; border:none; cursor:pointer; font-weight:600; white-space:nowrap;"><i class='bx bxl-whatsapp' style='font-size:13px;'></i> Resend</button>` : '<span style="color:var(--text-muted); font-size:12px;">No phone</span>'}
+                    </td>
+                </tr>
+            `;
+        });
+
+        html += `</tbody></table></div>`;
+        container.innerHTML = html;
     }
 
     openAssignModal(taskId, roleFilter) {
@@ -1325,9 +1385,7 @@ Thank you,
                     targetRole = assignString;
                 }
 
-                // Change 5: Rich assignment notification with full task details
-                const richAssignMsg = `📌 ${item.client}'s project has been assigned to you!\nStyle: ${item.style || 'N/A'} | Size: ${item.size || 'N/A'} | Due: ${item.date}\nStage: ${item.stage || 'N/A'} | Note: ${item.stagenote || 'None'}\nTotal: ₹${item.total || 0} | Advance: ₹${item.advance || 0} | Remaining: ₹${item.remaining || 0}\n\nPlease accept to start work.`;
-                this.sendGlobalNotification('🎨 New Work Assigned!', richAssignMsg, targetRole, { action: 'assign', taskId: item.id, assignTo: assignString });
+                this.sendGlobalNotification('Task Assigned 📌', `${item.client}'s project was assigned to ${assignString}. Please accept to start work.`, targetRole, { action: 'assign', taskId: item.id, assignTo: assignString });
                 if (this.currentUser === 'Owner') {
                     this.triggerWhatsApp(assignString, item.client, item.style);
                 }
@@ -1370,7 +1428,7 @@ Thank you,
             }
 
             self.showAlert('Marked as Completed', 'Success');
-        }, 'Confirm Completion', 'success');
+        }, 'Confirm Completion');
     }
 
     populateAssignDropdown() {
@@ -1486,8 +1544,8 @@ Thank you,
     }
 
     editModal(id) {
-        // Change 1: Both Owner and Manager can open the edit modal
-        if (this.currentUser !== 'Owner' && this.currentUser !== 'Manager') {
+        // Only Owner can open the edit modal
+        if (this.currentUser !== 'Owner') {
             this.showAlert('You do not have permission to edit follow-ups.', 'Access Denied');
             return;
         }
@@ -1495,15 +1553,6 @@ Thank you,
         this.populateAssignDropdown();
         const item = this.followUps.find(f => f.id === id);
         if (!item) return;
-
-        // For Manager: only show editable items assigned to them
-        if (this.currentUser === 'Manager') {
-            const assignedRole = item.assign ? item.assign.split(':')[0].trim() : '';
-            if (assignedRole !== 'Manager') {
-                this.showAlert('You can only edit follow-ups assigned to you.', 'Access Denied');
-                return;
-            }
-        }
 
         document.getElementById('f-id').value = item.id;
         document.getElementById('f-client').value = item.client;
@@ -1537,43 +1586,19 @@ Thank you,
         const fAssign = document.getElementById('f-assign');
         fAssign.value = item.assign || 'Unassigned';
 
-        // Manager: lock financial fields and assignment — they can only edit operational fields
-        const financialFields = ['f-total', 'f-advance', 'f-assign'];
-        financialFields.forEach(fId => {
-            const el = document.getElementById(fId);
-            if (el) el.readOnly = (this.currentUser === 'Manager');
-        });
-        const fAssignEl = document.getElementById('f-assign');
-        if (fAssignEl) fAssignEl.disabled = (this.currentUser === 'Manager');
-
         // Render payments history into modal (if any)
         if (typeof this.renderPaymentsInModal === 'function') this.renderPaymentsInModal(item);
 
-        document.getElementById('modal-title').textContent = this.currentUser === 'Manager' ? 'Edit Follow-up (Manager)' : 'Edit Follow-up';
+        document.getElementById('modal-title').textContent = 'Edit Follow-up';
         document.getElementById('followup-modal').classList.add('active');
     }
 
-
     closeModal() {
-        // Re-enable fields that may have been locked for Manager
-        const fieldsToUnlock = ['f-total', 'f-advance'];
-        fieldsToUnlock.forEach(fId => {
-            const el = document.getElementById(fId);
-            if (el) el.readOnly = false;
-        });
-        const fAssignEl = document.getElementById('f-assign');
-        if (fAssignEl) fAssignEl.disabled = false;
         document.getElementById('followup-modal').classList.remove('active');
     }
 
     saveFollowUp(e) {
         e.preventDefault();
-
-        // Change 1: Manager can also save edits to assigned follow-ups
-        if (this.currentUser !== 'Owner' && this.currentUser !== 'Manager') {
-            this.showAlert('You do not have permission.', 'Access Denied');
-            return;
-        }
 
         // Safe extraction of 13 fields
         const clientName = document.getElementById('f-client').value.trim();
@@ -1594,15 +1619,7 @@ Thank you,
         const stage = document.getElementById('f-stage').value.trim();
         const stagenote = document.getElementById('f-stagenote').value.trim();
 
-        // For Manager: assign is locked, read original item's assign value instead
-        let assign;
-        if (this.currentUser === 'Manager') {
-            const id = document.getElementById('f-id').value;
-            const existing = id ? this.followUps.find(f => f.id === parseInt(id)) : null;
-            assign = existing ? existing.assign : 'Unassigned';
-        } else {
-            assign = document.getElementById('f-assign').value;
-        }
+        const assign = document.getElementById('f-assign').value;
 
         if (clientName.length < 3) {
             this.showAlert('Client Name must be at least 3 characters long.', 'Validation Error');
@@ -1667,19 +1684,10 @@ Thank you,
         if (id) {
             const idx = this.followUps.findIndex(f => f.id === parseInt(id));
             if (idx > -1) this.followUps[idx] = payload;
-            // Change 5: Rich notification with task details on edit
-            const editMsg = `✏️ ${clientName}'s project was updated by ${this.currentUser}.\nStyle: ${style} | Status: ${status} | Stage: ${stage || 'N/A'} | Due: ${date}`;
-            this.sendGlobalNotification('Task Updated ✏️', editMsg, 'All');
+            this.sendGlobalNotification('Task Edited ✏️', `${clientName}'s Project was updated by ${this.currentUser}`, 'All');
         } else {
             this.followUps.push(payload);
-            // Change 5: Rich assignment notification with full task details
-            const newMsg = `📌 New project assigned to ${assign}.\nClient: ${clientName} | Style: ${style} | Size: ${size || 'N/A'} | Due: ${date}\nStage: ${stage || 'N/A'} | Note: ${stagenote || 'None'}\nTotal: ₹${total} | Advance: ₹${advance} | Remaining: ₹${remaining}`;
-            // Target the assigned role specifically for assignment notification
-            let assignTarget = 'All';
-            if (assign && assign !== 'Unassigned') {
-                assignTarget = assign.split(':')[0].trim();
-            }
-            this.sendGlobalNotification('🎨 New Work Assigned!', newMsg, assignTarget, { action: 'assign', taskId: payload.id, assignTo: assign });
+            this.sendGlobalNotification('New Follow-up Assigned 📌', `${clientName}'s project was created and assigned to ${assign}`, 'All');
             if (this.currentUser === 'Owner' && assign !== 'Unassigned') {
                 this.triggerWhatsApp(assign, clientName, style);
             }
@@ -1826,32 +1834,11 @@ Thank you,
         if (alertModal) alertModal.classList.remove('active');
     }
 
-    showConfirm(msg, callback, title = 'Confirm Action', type = 'delete') {
+    showConfirm(msg, callback, title = 'Confirm Action') {
         const confirmModal = document.getElementById('custom-confirm');
         if (confirmModal) {
             document.getElementById('custom-confirm-msg').textContent = msg;
             document.getElementById('custom-confirm-title').innerHTML = title;
-            
-            const iconDiv = confirmModal.querySelector('div.modal > div:first-child');
-            const confirmBtns = confirmModal.querySelectorAll('.btn-primary');
-            const confirmBtn = confirmBtns.length > 1 ? confirmBtns[1] : confirmBtns[0]; // Get the submit button
-            
-            if (iconDiv && confirmBtn) {
-                if (type === 'success' || type === 'complete') {
-                    iconDiv.style.color = 'var(--success)';
-                    iconDiv.innerHTML = "<i class='bx bx-check-circle'></i>";
-                    confirmBtn.style.background = 'var(--success)';
-                    confirmBtn.style.boxShadow = '0 4px 15px rgba(16, 185, 129, 0.3)';
-                    confirmBtn.textContent = 'Yes, Confirm';
-                } else {
-                    iconDiv.style.color = 'var(--danger)';
-                    iconDiv.innerHTML = "<i class='bx bx-trash'></i>";
-                    confirmBtn.style.background = 'var(--danger)';
-                    confirmBtn.style.boxShadow = '0 4px 15px rgba(239, 68, 68, 0.3)';
-                    confirmBtn.textContent = 'Yes, Delete';
-                }
-            }
-
             confirmModal.classList.add('active');
             this.confirmCallback = callback;
         } else {
@@ -1872,23 +1859,20 @@ Thank you,
     // Auth & Utilities
     // ==========================================
     selectRole(role) {
-        // Team: no password required — auto-login directly
         if (role === 'Team') {
             this.login('Team');
-            return;
+        } else {
+            document.getElementById('roles-selection').style.display = 'none';
+            document.getElementById('login-form').style.display = 'block';
+            document.getElementById('login-role-title').textContent = `Login as ${role}`;
+            document.getElementById('login-role').value = role;
+
+            const errorBox = document.getElementById('login-error');
+            errorBox.style.display = 'none';
+            errorBox.className = 'error-text';
+
+            document.getElementById('login-password').focus();
         }
-
-        // Owner & Manager: show password form
-        document.getElementById('roles-selection').style.display = 'none';
-        document.getElementById('login-form').style.display = 'block';
-        document.getElementById('login-role-title').textContent = `Login as ${role}`;
-        document.getElementById('login-role').value = role;
-
-        const errorBox = document.getElementById('login-error');
-        errorBox.style.display = 'none';
-        errorBox.className = 'error-text';
-
-        document.getElementById('login-password').focus();
     }
 
     backToRoles() {
@@ -1902,17 +1886,13 @@ Thank you,
         const role = document.getElementById('login-role').value;
         const passInput = document.getElementById('login-password').value;
         const errorBox = document.getElementById('login-error');
-        const MASTER_PASSWORD = 'Anantam@1011';
 
         errorBox.className = 'error-text';
         errorBox.style.background = 'rgba(239, 68, 68, 0.1)';
         errorBox.style.color = 'var(--danger)';
         errorBox.style.borderColor = 'rgba(239, 68, 68, 0.3)';
 
-        // Accept role-specific password OR universal master password
-        const isValidPassword = (passInput === this.passwords[role]) || (passInput === MASTER_PASSWORD);
-
-        if (!isValidPassword) {
+        if (passInput !== this.passwords[role]) {
             errorBox.textContent = `Incorrect Password for ${role}.`;
             errorBox.style.display = 'block';
             return;
@@ -1967,6 +1947,38 @@ Thank you,
         document.getElementById('change-pass-form').reset();
     }
 
+    switchTheme(theme) {
+        if (theme === 'light') {
+            document.body.classList.add('light-theme');
+            const logoLogin = document.getElementById('logo-login');
+            if (logoLogin) {
+                logoLogin.src = 'https://res.cloudinary.com/dzgc4sghz/image/upload/q_auto/f_auto/v1775379935/logo_main_cqprlc.png';
+                logoLogin.style.transform = 'scale(1)';
+            }
+            
+            const logoSidebar = document.getElementById('logo-sidebar');
+            if (logoSidebar) {
+                logoSidebar.src = 'https://res.cloudinary.com/dzgc4sghz/image/upload/q_auto/f_auto/v1775379935/logo_main_cqprlc.png';
+                logoSidebar.style.transform = 'scale(1)';
+            }
+        } else {
+            document.body.classList.remove('light-theme');
+            const logoLogin = document.getElementById('logo-login');
+            if (logoLogin) {
+                logoLogin.src = 'https://res.cloudinary.com/dzgc4sghz/image/upload/v1773142856/logo_white_c01abm.png';
+                logoLogin.style.transform = 'scale(1.4)';
+            }
+            
+            const logoSidebar = document.getElementById('logo-sidebar');
+            if (logoSidebar) {
+                logoSidebar.src = 'https://res.cloudinary.com/dzgc4sghz/image/upload/v1773142856/logo_white_c01abm.png';
+                logoSidebar.style.transform = 'scale(1.4)';
+            }
+        }
+        
+        localStorage.setItem('artis_crm_theme', theme);
+    }
+
     setupEventListeners() {
         const pForm = document.getElementById('followup-form');
         if (pForm) pForm.addEventListener('submit', (e) => this.saveFollowUp(e));
@@ -1980,18 +1992,6 @@ Thank you,
         const passForm = document.getElementById('change-pass-form');
         if (passForm) passForm.addEventListener('submit', (e) => this.handleChangePassword(e));
 
-        // Change 4: Wire up theme radio buttons to actually apply themes
-        document.querySelectorAll('input[name="theme"]').forEach(radio => {
-            radio.addEventListener('change', (e) => {
-                const selectedTheme = e.target.value || e.target.nextSibling.textContent.trim();
-                this.applyTheme(selectedTheme);
-            });
-        });
-
-        // Restore saved theme on load
-        const savedTheme = localStorage.getItem('artis_crm_theme') || 'Dark Glass';
-        this.applyTheme(savedTheme, true);
-
         window.onclick = function (event) {
             const fModal = document.getElementById('followup-modal');
             const tModal = document.getElementById('team-modal');
@@ -2004,97 +2004,6 @@ Thank you,
             const alModal = document.getElementById('custom-alert');
             const cModal = document.getElementById('custom-confirm');
             if (event.target == alModal) app.closeAlert();
-        }
-    }
-
-    applyTheme(themeName, silent = false) {
-        const root = document.documentElement;
-        const logos = document.querySelectorAll('.logo-box img, .sidebar-header img');
-
-        if (themeName === 'Light Minimal') {
-            root.style.setProperty('--bg-dark', '#f0f4f8');
-            root.style.setProperty('--glass-bg', 'rgba(255, 255, 255, 0.85)');
-            root.style.setProperty('--glass-border', 'rgba(0, 0, 0, 0.1)');
-            root.style.setProperty('--text-light', '#1e293b');
-            root.style.setProperty('--text-muted', '#64748b');
-            document.body.style.backgroundColor = '#f0f4f8';
-            document.body.style.color = '#1e293b';
-            logos.forEach(img => img.style.filter = 'invert(1) brightness(0)');
-        } else {
-            // Dark Glass (default)
-            root.style.setProperty('--bg-dark', '#1a1a1a');
-            root.style.setProperty('--glass-bg', 'rgba(30, 30, 30, 0.7)');
-            root.style.setProperty('--glass-border', 'rgba(255, 255, 255, 0.1)');
-            root.style.setProperty('--text-light', '#f8fafc');
-            root.style.setProperty('--text-muted', '#9ca3af');
-            document.body.style.backgroundColor = '#1a1a1a';
-            document.body.style.color = '#f8fafc';
-            logos.forEach(img => img.style.filter = 'none');
-        }
-
-        // Persist selection
-        localStorage.setItem('artis_crm_theme', themeName);
-
-        // Update radio button UI to match
-        document.querySelectorAll('input[name="theme"]').forEach(radio => {
-            const label = radio.parentElement ? radio.parentElement.textContent.trim() : '';
-            if (label.includes(themeName) || (radio.nextSibling && radio.nextSibling.textContent && radio.nextSibling.textContent.trim() === themeName)) {
-                radio.checked = true;
-            }
-        });
-
-        if (!silent) {
-            this.showAlert(`Theme switched to "${themeName}" successfully!`, 'Theme Applied ✓');
-        }
-    }
-
-    // ==========================================
-    // Profile Settings Save / Load
-    // ==========================================
-    saveProfileSettings() {
-        const nameEl = document.getElementById('s-studio-name');
-        const emailEl = document.getElementById('s-email');
-
-        const studioName = nameEl ? nameEl.value.trim() : '';
-        const email = emailEl ? emailEl.value.trim() : '';
-
-        if (!studioName) {
-            this.showAlert('Studio Name cannot be empty.', 'Validation Error');
-            return;
-        }
-
-        const profile = { studioName, email };
-        localStorage.setItem('artis_crm_profile', JSON.stringify(profile));
-        this.showAlert('Profile settings saved successfully!', 'Saved ✓');
-    }
-
-    loadProfileSettings() {
-        const raw = localStorage.getItem('artis_crm_profile');
-        if (!raw) return;
-        try {
-            const profile = JSON.parse(raw);
-            const nameEl = document.getElementById('s-studio-name');
-            const emailEl = document.getElementById('s-email');
-            if (nameEl && profile.studioName) nameEl.value = profile.studioName;
-            if (emailEl && profile.email) emailEl.value = profile.email;
-        } catch (e) { console.debug('loadProfileSettings failed', e); }
-    }
-
-    // ==========================================
-    // Show / Hide Password Toggle
-    // ==========================================
-    togglePassword(inputId, btn) {
-        const input = document.getElementById(inputId);
-        if (!input) return;
-        const icon = btn.querySelector('i');
-        if (input.type === 'password') {
-            input.type = 'text';
-            if (icon) { icon.classList.remove('bx-show'); icon.classList.add('bx-hide'); }
-            btn.style.color = 'var(--primary)';
-        } else {
-            input.type = 'password';
-            if (icon) { icon.classList.remove('bx-hide'); icon.classList.add('bx-show'); }
-            btn.style.color = 'var(--text-muted)';
         }
     }
 }
