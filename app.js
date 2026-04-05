@@ -1951,29 +1951,17 @@ Kindly arrange the remaining payment at your earliest convenience. Thank you for
         if (theme === 'light') {
             document.body.classList.add('light-theme');
             const logoLogin = document.getElementById('logo-login');
-            if (logoLogin) {
-                logoLogin.src = 'https://res.cloudinary.com/dzgc4sghz/image/upload/q_auto/f_auto/v1775379935/logo_main_cqprlc.png';
-                logoLogin.style.transform = 'scale(1)';
-            }
+            if (logoLogin) logoLogin.src = 'https://res.cloudinary.com/dzgc4sghz/image/upload/q_auto/f_auto/v1775379935/logo_main_cqprlc.png';
             
             const logoSidebar = document.getElementById('logo-sidebar');
-            if (logoSidebar) {
-                logoSidebar.src = 'https://res.cloudinary.com/dzgc4sghz/image/upload/q_auto/f_auto/v1775379935/logo_main_cqprlc.png';
-                logoSidebar.style.transform = 'scale(1)';
-            }
+            if (logoSidebar) logoSidebar.src = 'https://res.cloudinary.com/dzgc4sghz/image/upload/q_auto/f_auto/v1775379935/logo_main_cqprlc.png';
         } else {
             document.body.classList.remove('light-theme');
             const logoLogin = document.getElementById('logo-login');
-            if (logoLogin) {
-                logoLogin.src = 'https://res.cloudinary.com/dzgc4sghz/image/upload/v1773142856/logo_white_c01abm.png';
-                logoLogin.style.transform = 'scale(1.4)';
-            }
+            if (logoLogin) logoLogin.src = 'https://res.cloudinary.com/dzgc4sghz/image/upload/v1773142856/logo_white_c01abm.png';
             
             const logoSidebar = document.getElementById('logo-sidebar');
-            if (logoSidebar) {
-                logoSidebar.src = 'https://res.cloudinary.com/dzgc4sghz/image/upload/v1773142856/logo_white_c01abm.png';
-                logoSidebar.style.transform = 'scale(1.4)';
-            }
+            if (logoSidebar) logoSidebar.src = 'https://res.cloudinary.com/dzgc4sghz/image/upload/v1773142856/logo_white_c01abm.png';
         }
         
         localStorage.setItem('artis_crm_theme', theme);
