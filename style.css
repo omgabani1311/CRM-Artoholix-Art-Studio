@@ -36,38 +36,35 @@ body {
 /* Background Animated Shapes */
 .bg-shape {
     position: fixed;
-    border-radius: 50%;
-    filter: blur(80px);
     z-index: -1;
     animation: float 10s infinite ease-in-out alternate;
+    will-change: transform;
+    transform: translateZ(0); /* Hardware acceleration for fluid Mac/Windows experience */
 }
 
 .shape-1 {
-    width: 400px;
-    height: 400px;
-    background: rgba(212, 175, 55, 0.15);
-    /* Gold blur */
-    top: -100px;
-    left: -100px;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(212, 175, 55, 0.15) 0%, rgba(212, 175, 55, 0) 70%);
+    top: -200px;
+    left: -200px;
 }
 
 .shape-2 {
-    width: 300px;
-    height: 300px;
-    background: rgba(59, 130, 246, 0.15);
-    /* Blue blur */
-    bottom: -50px;
-    right: -50px;
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0) 70%);
+    bottom: -150px;
+    right: -150px;
     animation-delay: -3s;
 }
 
 .shape-3 {
-    width: 250px;
-    height: 250px;
-    background: rgba(236, 72, 153, 0.1);
-    /* Pink blur */
-    top: 40%;
-    left: 40%;
+    width: 400px;
+    height: 400px;
+    background: radial-gradient(circle, rgba(236, 72, 153, 0.1) 0%, rgba(236, 72, 153, 0) 70%);
+    top: 30%;
+    left: 30%;
     animation-delay: -5s;
 }
 
@@ -86,11 +83,13 @@ body {
    ========================================= */
 .glass {
     background: var(--glass-bg);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
     border: 1px solid var(--glass-border);
     border-radius: 16px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    /* Optimize glassmorphism for performance */
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transform: translateZ(0); 
 }
 
 .view {
@@ -805,7 +804,7 @@ textarea:focus {
 
 option {
     background: var(--bg-dark);
-    color: #fff;
+    color: var(--text-light);
 }
 
 .modal-footer {
