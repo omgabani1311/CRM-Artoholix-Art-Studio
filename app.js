@@ -2022,12 +2022,12 @@ Thank you,
             logos.forEach(img => img.style.filter = 'invert(1) brightness(0)');
         } else {
             // Dark Glass (default)
-            root.style.setProperty('--bg-dark', '#0f172a');
-            root.style.setProperty('--glass-bg', 'rgba(30, 41, 59, 0.7)');
+            root.style.setProperty('--bg-dark', '#1a1a1a');
+            root.style.setProperty('--glass-bg', 'rgba(30, 30, 30, 0.7)');
             root.style.setProperty('--glass-border', 'rgba(255, 255, 255, 0.1)');
             root.style.setProperty('--text-light', '#f8fafc');
-            root.style.setProperty('--text-muted', '#94a3b8');
-            document.body.style.backgroundColor = '#0f172a';
+            root.style.setProperty('--text-muted', '#9ca3af');
+            document.body.style.backgroundColor = '#1a1a1a';
             document.body.style.color = '#f8fafc';
             logos.forEach(img => img.style.filter = 'none');
         }
