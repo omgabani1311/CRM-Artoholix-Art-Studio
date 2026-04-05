@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Art Studio CRM</title>
+    <title>Artoholix Art Studio CRM</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css?v=3">
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
@@ -26,7 +26,7 @@
                     style="display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 15px;">
                     <!-- <i class='bx bxs-palette' style="margin-bottom: 0;"></i> -->
                     <img src="https://res.cloudinary.com/dzgc4sghz/image/upload/v1773142856/logo_white_c01abm.png"
-                        alt="Artis Logo">
+                        alt="Artoholix Logo">
                 </div>
                 <p>Welcome! Select your role to continue</p>
             </div>
@@ -56,8 +56,14 @@
                 <input type="hidden" id="login-role">
                 <div class="form-group" style="text-align: left;">
                     <label>Password</label>
-                    <input type="password" id="login-password" placeholder="Enter secure password" required
-                        autocomplete="current-password">
+                    <div style="position: relative;">
+                        <input type="password" id="login-password" placeholder="Enter secure password" required
+                            autocomplete="current-password" style="padding-right: 44px;">
+                        <button type="button" onclick="app.togglePassword('login-password', this)" tabindex="-1"
+                            style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:18px;padding:0;display:flex;align-items:center;">
+                            <i class='bx bx-show'></i>
+                        </button>
+                    </div>
                     <small style="color: var(--text-muted); font-size: 11px; display: block; margin-top: 5px;">Required:
                         Min 8 chars, 1 Uppercase, 1 Lowercase, 1 Number, 1 Special Char (@$!%*?&)</small>
                 </div>
@@ -87,12 +93,6 @@
                 </li>
                 <li class="nav-item restricted mgmt" data-page="clients" onclick="app.navigate('clients')">
                     <a href="#"><i class='bx bx-group'></i> Clients</a>
-                </li>
-                <li class="nav-item restricted mgmt" data-page="reminders" onclick="app.navigate('reminders')">
-                    <a href="#" style="display: flex; align-items: center; justify-content: space-between;">
-                        <span><i class='bx bxl-whatsapp'></i> Reminders Sent</span>
-                        <span id="reminder-count-badge" style="display:none; background: #25d366; color:#000; font-size:10px; font-weight:700; padding:2px 7px; border-radius:10px; min-width:18px; align-items:center; justify-content:center;">0</span>
-                    </a>
                 </li>
                 <li class="nav-item restricted mgmt" data-page="analytics" onclick="app.navigate('analytics')">
                     <a href="#"><i class='bx bx-bar-chart-alt-2'></i> Analytics</a>
@@ -190,6 +190,22 @@
                             <!-- Populated by JS Full List -->
                         </div>
                     </div>
+
+                    <!-- Payment Reminder Sent Section -->
+                    <div id="reminder-log-section">
+                        <div class="section-title split" style="margin-top: 40px;">
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                <i class='bx bxl-whatsapp' style="font-size:22px; color:#25d366;"></i>
+                                <h2>Payment Reminders Sent</h2>
+                            </div>
+                            <button class="btn-secondary" style="font-size:12px; padding:6px 14px;" onclick="app.clearReminderLog()">
+                                <i class='bx bx-trash'></i> Clear Log
+                            </button>
+                        </div>
+                        <div class="glass" style="padding: 20px;" id="reminder-log-container">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Page: Team Management -->
@@ -245,25 +261,7 @@
                     </div>
                 </div>
 
-                <!-- Page: Reminders Sent -->
-                <div id="page-reminders" class="page-section">
-                    <div class="dashboard-header split">
-                        <div>
-                            <h1>Reminders Sent</h1>
-                            <p class="subtitle">All clients who received a WhatsApp payment reminder.</p>
-                        </div>
-                    </div>
-                    <div class="card-horizontal-scroller">
-                        <div class="glass" style="padding: 20px; min-height: 300px;">
-                            <div id="reminders-content">
-                                <!-- Populated by JS -->
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Page: Analytics -->
-
                 <div id="page-analytics" class="page-section">
                     <div class="dashboard-header split">
                         <div>
@@ -313,12 +311,12 @@
                             <h3 style="margin-bottom: 20px; color: var(--primary);">Profile Settings</h3>
                             <div class="form-group">
                                 <label>Studio Name</label>
-                                <input type="text" value="Artis Studio Co.">
+                                <input type="text" id="s-studio-name" placeholder="e.g. Artoholix Art Studio">
                             </div>
                             <div class="form-row">
                                 <div class="form-group">
                                     <label>Notification Email</label>
-                                    <input type="email" value="admin@artis.com">
+                                    <input type="email" id="s-email" placeholder="e.g. admin@artoholix.com">
                                 </div>
                                 <div class="form-group">
                                     <label>Currency</label>
@@ -331,12 +329,11 @@
                             <h3 style="margin: 30px 0 20px; color: var(--primary);">Theme</h3>
                             <div style="display: flex; gap: 15px; margin-bottom: 20px;">
                                 <label style="display: flex; align-items: center; gap: 8px;"><input type="radio"
-                                        name="theme" checked> Dark Glass</label>
+                                        name="theme" value="Dark Glass" checked> Dark Glass</label>
                                 <label style="display: flex; align-items: center; gap: 8px;"><input type="radio"
-                                        name="theme"> Light Minimal</label>
+                                        name="theme" value="Light Minimal"> Light Minimal</label>
                             </div>
-                            <button class="btn-secondary"
-                                onclick="app.showAlert('Settings saved successfully!', 'Success')">Save
+                            <button class="btn-secondary" onclick="app.saveProfileSettings()">Save
                                 Preferences</button>
                         </div>
 
@@ -348,18 +345,36 @@
                                 <div id="pass-msg" class="error-text" style="display: none;"></div>
                                 <div class="form-group">
                                     <label>Current Password</label>
-                                    <input type="password" id="cp-current" required>
+                                    <div style="position: relative;">
+                                        <input type="password" id="cp-current" required style="padding-right: 44px;">
+                                        <button type="button" onclick="app.togglePassword('cp-current', this)" tabindex="-1"
+                                            style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:18px;padding:0;display:flex;align-items:center;">
+                                            <i class='bx bx-show'></i>
+                                        </button>
+                                    </div>
                                 </div>
                                 <div class="form-group">
                                     <label>New Password</label>
-                                    <input type="password" id="cp-new" required>
+                                    <div style="position: relative;">
+                                        <input type="password" id="cp-new" required style="padding-right: 44px;">
+                                        <button type="button" onclick="app.togglePassword('cp-new', this)" tabindex="-1"
+                                            style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:18px;padding:0;display:flex;align-items:center;">
+                                            <i class='bx bx-show'></i>
+                                        </button>
+                                    </div>
                                     <small
                                         style="color: var(--text-muted); font-size: 11px; display: block; margin-top: 5px;">Must
                                         have Min 8 chars, 1 Uppercase, 1 Lowercase, 1 Number, 1 Special Char.</small>
                                 </div>
                                 <div class="form-group">
                                     <label>Confirm New Password</label>
-                                    <input type="password" id="cp-confirm" required>
+                                    <div style="position: relative;">
+                                        <input type="password" id="cp-confirm" required style="padding-right: 44px;">
+                                        <button type="button" onclick="app.togglePassword('cp-confirm', this)" tabindex="-1"
+                                            style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:18px;padding:0;display:flex;align-items:center;">
+                                            <i class='bx bx-show'></i>
+                                        </button>
+                                    </div>
                                 </div>
                                 <button type="submit" class="btn-primary">Update Password</button>
                             </form>
@@ -461,18 +476,20 @@
                     <input type="text" id="f-stagenote" placeholder="Any specific note for this stage...">
                 </div>
 
-                <!-- <div class="form-group">
-                    <label>Payments</label>
-                    <div id="payments-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;color:var(--text-muted);">
-                         Populated by JS -->
-                <!--</div>
+                <div class="form-group" style="margin-top: 15px;">
+                    <label style="display:flex; align-items:center; gap:8px;">
+                        <i class='bx bx-wallet' style="color:var(--primary);"></i> Payment Records
+                    </label>
+                    <div id="payments-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;max-height:120px;overflow-y:auto;"></div>
                     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-                        <input type="number" id="p-amount" placeholder="Amount (₹)" style="width:140px;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.03);background:rgba(255,255,255,0.02);color:var(--text-light);">
-                        <input type="date" id="p-date" style="padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.03);background:rgba(255,255,255,0.02);color:var(--text-light);">
-                        <input type="text" id="p-note" placeholder="Note (optional)" style="flex:1;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.03);background:rgba(255,255,255,0.02);color:var(--text-light);">
-                        <button type="button" class="btn-primary" onclick="app.addPaymentFromModal()" style="padding:8px 12px;">Add Payment</button>
+                        <input type="number" id="p-amount" placeholder="Amount (₹)" style="width:130px;">
+                        <input type="date" id="p-date" style="flex:1;min-width:110px;">
+                        <input type="text" id="p-note" placeholder="Note (optional)" style="flex:2;min-width:100px;">
+                        <button type="button" class="btn-primary" onclick="app.addPaymentFromModal()" style="padding:8px 14px;white-space:nowrap;">
+                            <i class='bx bx-plus'></i> Add Payment
+                        </button>
                     </div>
-                </div> -->
+                </div>
 
                 <div class="modal-footer">
                     <button type="button" class="btn-secondary" onclick="app.closeModal()">Cancel</button>
