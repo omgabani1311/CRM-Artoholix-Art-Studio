@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
-import { getDatabase, ref, push, onChildAdded, query, limitToLast } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-database.js";
+import { getDatabase, ref, push, onChildAdded, query, limitToLast, update } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-database.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyDpkLi2XtoPpDTlk5GVroB4T_jRUWldFH4",
@@ -94,7 +94,7 @@ class ArtStudioCRM {
         // Restore theme
         const savedTheme = localStorage.getItem('artis_crm_theme') || 'dark';
         this.switchTheme(savedTheme);
-        
+
         // Update the radio buttons to reflect the current theme
         const themeRadios = document.querySelectorAll('input[name="theme"]');
         themeRadios.forEach(r => {
@@ -105,7 +105,7 @@ class ArtStudioCRM {
     populateCityDropdown() {
         const select = document.getElementById('f-location');
         if (!select) return;
-        
+
         select.innerHTML = '<option value="" disabled selected>Select City</option>';
         const cities = Object.keys(CITY_STATE_MAP).sort();
         cities.forEach(city => {
@@ -138,7 +138,7 @@ class ArtStudioCRM {
                 const data = snapshot.val();
                 const notifId = snapshot.key;
                 console.debug('[notif] onChildAdded received', { notifId, data, currentUser: this.currentUser });
-                if (data && data.sender !== this.currentUser && !this.acceptedNotifications.includes(notifId)) {
+                if (data && !data.globalAccepted && data.sender !== this.currentUser && !this.acceptedNotifications.includes(notifId)) {
                     this.processNotificationData(data, notifId);
                 }
             });
@@ -249,6 +249,12 @@ class ArtStudioCRM {
                 this.acceptedNotifications.splice(0, this.acceptedNotifications.length - 100);
             }
             localStorage.setItem('artis_accepted_notifs', JSON.stringify(this.acceptedNotifications));
+
+            if (db && !current.id.startsWith('local_')) {
+                try {
+                    update(ref(db, 'studio_notifications/' + current.id), { globalAccepted: true });
+                } catch (e) { console.debug('Failed to global accept notif', e); }
+            }
         }
 
         this.showNextNotification();
@@ -391,23 +397,23 @@ class ArtStudioCRM {
             this.followUps = [
                 {
                     id: 1, client: 'Emma Watson', contact: '+91 9988776655', location: 'Mumbai', style: 'Portrait', size: '24x36',
-                        desc: 'Custom Portrait 24x36 - Discuss color palette', total: 15000, advance: 5000, remaining: 10000,
-                        date: d1.toISOString().split('T')[0], status: 'Pending', stage: 'Sketching', stagenote: 'Awaiting client approval',
-                        payments: [{ amount: 5000, date: d1.toISOString().split('T')[0], note: 'Initial advance' }],
+                    desc: 'Custom Portrait 24x36 - Discuss color palette', total: 15000, advance: 5000, remaining: 10000,
+                    date: d1.toISOString().split('T')[0], status: 'Pending', stage: 'Sketching', stagenote: 'Awaiting client approval',
+                    payments: [{ amount: 5000, date: d1.toISOString().split('T')[0], note: 'Initial advance' }],
                     assign: 'Manager'
                 },
                 {
                     id: 2, client: 'John Smith', contact: '+91 8877665544', location: 'Delhi', style: 'Abstract Canvas', size: '48x48',
-                        desc: 'Abstract Canvas Delivery', total: 30000, advance: 30000, remaining: 0,
-                        date: d2.toISOString().split('T')[0], status: 'In Progress', stage: 'Framing', stagenote: 'Final wood frame requested',
-                        payments: [{ amount: 30000, date: d2.toISOString().split('T')[0], note: 'Full advance' }],
+                    desc: 'Abstract Canvas Delivery', total: 30000, advance: 30000, remaining: 0,
+                    date: d2.toISOString().split('T')[0], status: 'In Progress', stage: 'Framing', stagenote: 'Final wood frame requested',
+                    payments: [{ amount: 30000, date: d2.toISOString().split('T')[0], note: 'Full advance' }],
                     assign: 'Team'
                 },
                 {
                     id: 3, client: 'Sophia Patel', contact: '+91 7766554433', location: 'Pune', style: 'Mural Design', size: 'N/A',
-                        desc: 'Review sketches for mural', total: 45000, advance: 10000, remaining: 35000,
-                        date: d3.toISOString().split('T')[0], status: 'Pending', stage: 'Consultation', stagenote: 'Sent 3 drafts',
-                        payments: [{ amount: 10000, date: d3.toISOString().split('T')[0], note: 'Advance' }],
+                    desc: 'Review sketches for mural', total: 45000, advance: 10000, remaining: 35000,
+                    date: d3.toISOString().split('T')[0], status: 'Pending', stage: 'Consultation', stagenote: 'Sent 3 drafts',
+                    payments: [{ amount: 10000, date: d3.toISOString().split('T')[0], note: 'Advance' }],
                     assign: 'Team: Rahul Kumar'
                 }
             ];
@@ -605,7 +611,7 @@ class ArtStudioCRM {
     }
 
     isAmountVisible() {
-        return this.currentUser === 'Owner';
+        return this.currentUser === 'Owner' || this.currentUser === 'Manager';
     }
 
     renderAnalytics() {
@@ -631,7 +637,7 @@ class ArtStudioCRM {
                     paymentsReceived += amt;
                     if (p.date) {
                         const d = new Date(p.date);
-                        const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+                        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
                         monthsSet.add(key);
                         if (d >= monthStart && d <= monthEnd) paymentsThisMonth += amt;
                     }
@@ -643,7 +649,7 @@ class ArtStudioCRM {
                     paymentsReceived += a;
                     if (item.date) {
                         const d = new Date(item.date);
-                        const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+                        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
                         monthsSet.add(key);
                         if (d >= monthStart && d <= monthEnd) paymentsThisMonth += a;
                     }
@@ -851,11 +857,11 @@ class ArtStudioCRM {
                             <span>Due: ${item.date}</span>
                         </div>
                         ${(item.status === 'Completed' && item.completedAt) ? (() => {
-                            const cd = new Date(item.completedAt); cd.setHours(0,0,0,0);
-                            const dd = Math.floor((today.getTime() - cd.getTime()) / (1000*60*60*24));
-                            const dc = dd > 30 ? 'var(--danger)' : dd > 7 ? '#ff7a00' : dd > 0 ? '#facc15' : 'var(--success)';
-                            return `<div style="font-size:12px; margin-bottom:6px; display:flex; align-items:center; gap:5px;"><i class='bx bx-check-circle' style="color:${dc};"></i> <span style="color:${dc}; font-weight:600;">Completed ${dd}d ago</span></div>`;
-                        })() : ''}
+                        const cd = new Date(item.completedAt); cd.setHours(0, 0, 0, 0);
+                        const dd = Math.floor((today.getTime() - cd.getTime()) / (1000 * 60 * 60 * 24));
+                        const dc = dd > 30 ? 'var(--danger)' : dd > 7 ? '#ff7a00' : dd > 0 ? '#facc15' : 'var(--success)';
+                        return `<div style="font-size:12px; margin-bottom:6px; display:flex; align-items:center; gap:5px;"><i class='bx bx-check-circle' style="color:${dc};"></i> <span style="color:${dc}; font-weight:600;">Completed ${dd}d ago</span></div>`;
+                    })() : ''}
                     </div>
 
                     <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05);">
@@ -884,13 +890,13 @@ class ArtStudioCRM {
         // Fallback to original grid layout for other containers
         let gridHtml = `<div class="client-card-grid">`;
 
-            data.forEach((item, idx) => {
+        data.forEach((item, idx) => {
             let statusClass = 'pill-pending';
             if (item.status === 'In Progress') statusClass = 'pill-progress';
             if (item.status === 'Completed') statusClass = 'pill-completed';
 
-                let urgencyColor = 'rgba(255,255,255,0.1)';
-                let urgencyClass = '';
+            let urgencyColor = 'rgba(255,255,255,0.1)';
+            let urgencyClass = '';
             if (item.status !== 'Completed' && item.date) {
                 const itemDate = new Date(item.date);
                 itemDate.setHours(0, 0, 0, 0);
@@ -944,11 +950,11 @@ class ArtStudioCRM {
                         <span>Due: ${item.date}</span>
                     </div>
                     ${(item.status === 'Completed' && item.completedAt) ? (() => {
-                        const cd = new Date(item.completedAt); cd.setHours(0,0,0,0);
-                        const dd = Math.floor((today.getTime() - cd.getTime()) / (1000*60*60*24));
-                        const dc = dd > 30 ? 'var(--danger)' : dd > 7 ? '#ff7a00' : dd > 0 ? '#facc15' : 'var(--success)';
-                        return `<div style="font-size:12px; margin-bottom:6px; display:flex; align-items:center; gap:5px;"><i class='bx bx-check-circle' style="color:${dc};"></i> <span style="color:${dc}; font-weight:600;">Completed ${dd}d ago</span></div>`;
-                    })() : ''}
+                    const cd = new Date(item.completedAt); cd.setHours(0, 0, 0, 0);
+                    const dd = Math.floor((today.getTime() - cd.getTime()) / (1000 * 60 * 60 * 24));
+                    const dc = dd > 30 ? 'var(--danger)' : dd > 7 ? '#ff7a00' : dd > 0 ? '#facc15' : 'var(--success)';
+                    return `<div style="font-size:12px; margin-bottom:6px; display:flex; align-items:center; gap:5px;"><i class='bx bx-check-circle' style="color:${dc};"></i> <span style="color:${dc}; font-weight:600;">Completed ${dd}d ago</span></div>`;
+                })() : ''}
                 </div>
 
                 <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05);">
@@ -957,7 +963,7 @@ class ArtStudioCRM {
                             <span class="f-status-pill ${statusClass}" style="font-size: 10px;">${item.status}</span>
                             <span style="font-size: 11px; color: var(--text-muted);"><i class='bx bx-user-pin'></i> ${item.assign ? item.assign.split(':')[0] : 'Unassigned'}</span>
                         </span>
-                        <span>${(function(){ try{ const assignedRole = item.assign ? item.assign.split(':')[0].trim() : ''; if ((this.currentUser === 'Manager' || this.currentUser === 'Team') && item.status !== 'Completed' && assignedRole === this.currentUser) { return `<button class="btn-quick complete" onclick="event.stopPropagation(); app.markCompleted(${item.id})" title="Mark Completed" style="background:var(--success); color:#000; padding:6px 10px; border-radius:6px; font-size:12px;">✓ Completed</button>`; } } catch(e){} return ''; }).call(this)}</span>
+                        <span>${(function () { try { const assignedRole = item.assign ? item.assign.split(':')[0].trim() : ''; if ((this.currentUser === 'Manager' || this.currentUser === 'Team') && item.status !== 'Completed' && assignedRole === this.currentUser) { return `<button class="btn-quick complete" onclick="event.stopPropagation(); app.markCompleted(${item.id})" title="Mark Completed" style="background:var(--success); color:#000; padding:6px 10px; border-radius:6px; font-size:12px;">✓ Completed</button>`; } } catch (e) { } return ''; }).call(this)}</span>
                     </div>
                     ${(this.currentUser === 'Owner' && (item.remaining > 0)) ? `
                     <button onclick="event.stopPropagation(); app.sendPaymentReminder(${item.id})" title="Send WhatsApp Payment Reminder" style="background: linear-gradient(135deg,#25d366,#128c7e); color:#fff; padding:7px 10px; border-radius:8px; font-size:12px; display:flex; align-items:center; justify-content:center; gap:6px; width:100%; border:none; cursor:pointer; font-weight:600;">
@@ -1162,7 +1168,7 @@ class ArtStudioCRM {
         const advance = parseFloat(item.advance) || 0;
 
         const msg =
-`Hello ${item.client} 🙏,
+            `Hello ${item.client} 🙏,
 
 This is a friendly payment reminder from *Artis Studio*.
 
@@ -1230,7 +1236,7 @@ Kindly arrange the remaining payment at your earliest convenience. Thank you for
 
         if (reminders.length === 0) {
             container.innerHTML = `
-                <div style="text-align: center; padding: 60px 20px; color: var(--text-muted);">
+                <div class="glass" style="text-align: center; padding: 60px 20px; color: var(--text-muted); width: 100%; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
                     <div style="font-size: 60px; margin-bottom: 20px;">💬</div>
                     <h3 style="color: var(--text-light); margin-bottom: 10px;">No Reminders Sent Yet</h3>
                     <p style="font-size: 14px;">When you send a WhatsApp payment reminder from the Follow-ups page, it will appear here.</p>
@@ -1261,30 +1267,11 @@ Kindly arrange the remaining payment at your earliest convenience. Thank you for
                     </button>
                 </div>
             </div>
-
-            <div class="table-responsive">
-                <table class="artis-table" style="min-width: 900px;">
-                    <thead>
-                        <tr>
-                            <th style="width: 30px; text-align: center;">No.</th>
-                            <th>Client Name</th>
-                            <th>Contact</th>
-                            <th>Art Style</th>
-                            <th>Project (₹)</th>
-                            <th>Advance (₹)</th>
-                            <th style="color: var(--danger);">Remaining (₹)</th>
-                            <th>Sent At</th>
-                            <th>Sent By</th>
-                            <th>Days Since Completed</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
         `;
 
-        reminders.forEach((r, idx) => {
+        reminders.slice().reverse().forEach((r, idx) => {
             const sentDate = new Date(r.sentAt);
-            const sentDateStr = sentDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+            const sentDateStr = sentDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
             const sentTimeStr = sentDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
             // How many times this client has been reminded
@@ -1293,35 +1280,45 @@ Kindly arrange the remaining payment at your earliest convenience. Thank you for
             const timesHtml = timesCount > 1 ? `<span style="background: var(--warning); color: #000; font-size: 10px; padding: 2px 6px; border-radius: 10px; font-weight: 700; margin-left: 6px;">${timesCount}x</span>` : '';
 
             const daysBadge = r.daysSinceCompleted !== null && r.daysSinceCompleted !== undefined
-                ? `<span style="color: ${r.daysSinceCompleted > 30 ? 'var(--danger)' : r.daysSinceCompleted > 7 ? '#ff7a00' : '#facc15'}; font-weight: 600;">${r.daysSinceCompleted}d</span>`
-                : `<span style="color: var(--text-muted);">-</span>`;
+                ? `<span style="color: ${r.daysSinceCompleted > 30 ? 'var(--danger)' : r.daysSinceCompleted > 7 ? '#ff7a00' : '#facc15'}; font-weight: 600; font-size:12px;">${r.daysSinceCompleted}d</span>`
+                : `<span style="color: var(--text-muted); font-size:12px;">-</span>`;
 
             const waNum = (r.contact || '').replace(/[^0-9]/g, '');
             const canResend = waNum.length >= 10;
 
             html += `
-                <tr style="transition: 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.04)'" onmouseout="this.style.background='transparent'">
-                    <td style="text-align: center; color: var(--text-muted); font-weight: 600;">${idx + 1}</td>
-                    <td style="font-weight: 700; color: #fff;">${r.client || '-'}${timesHtml}</td>
-                    <td style="color: var(--text-muted);">${r.contact || '-'}</td>
-                    <td>${r.style || '-'}</td>
-                    <td style="color: var(--primary); font-weight: 600;">₹${(r.total||0).toLocaleString('en-IN')}</td>
-                    <td style="color: var(--success);">₹${(r.advance||0).toLocaleString('en-IN')}</td>
-                    <td style="color: var(--danger); font-weight: 700;">₹${(r.remaining||0).toLocaleString('en-IN')}</td>
-                    <td>
-                        <div style="font-weight: 600; font-size: 13px;">${sentDateStr}</div>
-                        <div style="color: var(--text-muted); font-size: 11px;">${sentTimeStr}</div>
-                    </td>
-                    <td><span class="badge">${r.sentBy || '-'}</span></td>
-                    <td style="text-align: center;">${daysBadge}</td>
-                    <td>
-                        ${canResend ? `<button onclick="app.sendPaymentReminder(${r.taskId})" style="background: linear-gradient(135deg,#25d366,#128c7e); color:#fff; padding:5px 10px; border-radius:6px; font-size:11px; display:flex; align-items:center; gap:4px; border:none; cursor:pointer; font-weight:600; white-space:nowrap;"><i class='bx bxl-whatsapp' style='font-size:13px;'></i> Resend</button>` : '<span style="color:var(--text-muted); font-size:12px;">No phone</span>'}
-                    </td>
-                </tr>
+                <div class="client-card glass" style="border: 1px solid var(--glass-border); padding: 15px; border-radius: 12px; display: flex; flex-direction: column; gap: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                        <h3 style="font-size: 15px; margin: 0; color: #fff; line-height: 1.2;">
+                            <i class='bx bxl-whatsapp' style="color: #25d366; vertical-align: middle; margin-right: 4px;"></i>${r.client || '-'}${timesHtml}
+                        </h3>
+                    </div>
+                    
+                    <div style="font-size: 13px; color: var(--text-muted); display: flex; justify-content: space-between;">
+                        <span><i class='bx bx-phone'></i> ${r.contact || '-'}</span>
+                        <span class="badge" style="font-size:10px;">${r.sentBy || '-'}</span>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; font-size: 12px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px; margin-top: 4px;">
+                        <div>
+                            <div style="color: var(--text-muted);">Total</div>
+                            <div style="font-weight: 600; color: var(--primary);">₹${(r.total || 0).toLocaleString('en-IN')}</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="color: var(--text-muted);">Remaining</div>
+                            <div style="font-weight: 700; color: var(--danger);">₹${(r.remaining || 0).toLocaleString('en-IN')}</div>
+                        </div>
+                    </div>
+
+                    <div style="font-size: 12px; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.2); padding: 6px; border-radius: 6px;">
+                        <span style="color: var(--text-muted);"><i class='bx bx-time'></i> ${sentDateStr} ${sentTimeStr}</span>
+                        ${daysBadge}
+                    </div>
+
+                    ${canResend ? `<button onclick="app.sendPaymentReminder(${r.taskId})" style="margin-top:auto; background: linear-gradient(135deg,#25d366,#128c7e); color:#fff; padding:8px 10px; border-radius:6px; font-size:12px; width: 100%; border:none; cursor:pointer; font-weight:600;"><i class='bx bx-paper-plane'></i> Resend</button>` : `<div style="margin-top:auto; background: rgba(255,255,255,0.05); text-align:center; padding:8px; border-radius:6px; color:var(--text-muted); font-size:12px;">No phone</div>`}
+                </div>
             `;
         });
-
-        html += `</tbody></table></div>`;
         container.innerHTML = html;
     }
 
@@ -1470,7 +1467,7 @@ Kindly arrange the remaining payment at your earliest convenience. Thank you for
             row.style.justifyContent = 'space-between';
             row.style.fontSize = '13px';
             row.style.color = 'var(--text-light)';
-            row.innerHTML = `<div style="color:var(--text-muted);">${p.note || 'Payment'}</div><div style="color:var(--primary);">₹${(parseFloat(p.amount)||0).toLocaleString('en-IN')} <span style="color:var(--text-muted); font-size:12px; margin-left:8px">${p.date || ''}</span></div>`;
+            row.innerHTML = `<div style="color:var(--text-muted);">${p.note || 'Payment'}</div><div style="color:var(--primary);">₹${(parseFloat(p.amount) || 0).toLocaleString('en-IN')} <span style="color:var(--text-muted); font-size:12px; margin-left:8px">${p.date || ''}</span></div>`;
             list.appendChild(row);
         });
     }
@@ -1952,18 +1949,18 @@ Kindly arrange the remaining payment at your earliest convenience. Thank you for
             document.body.classList.add('light-theme');
             const logoLogin = document.getElementById('logo-login');
             if (logoLogin) logoLogin.src = 'https://res.cloudinary.com/dzgc4sghz/image/upload/q_auto/f_auto/v1775379935/logo_main_cqprlc.png';
-            
+
             const logoSidebar = document.getElementById('logo-sidebar');
             if (logoSidebar) logoSidebar.src = 'https://res.cloudinary.com/dzgc4sghz/image/upload/q_auto/f_auto/v1775379935/logo_main_cqprlc.png';
         } else {
             document.body.classList.remove('light-theme');
             const logoLogin = document.getElementById('logo-login');
             if (logoLogin) logoLogin.src = 'https://res.cloudinary.com/dzgc4sghz/image/upload/v1773142856/logo_white_c01abm.png';
-            
+
             const logoSidebar = document.getElementById('logo-sidebar');
             if (logoSidebar) logoSidebar.src = 'https://res.cloudinary.com/dzgc4sghz/image/upload/v1773142856/logo_white_c01abm.png';
         }
-        
+
         localStorage.setItem('artis_crm_theme', theme);
     }
 
