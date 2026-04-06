@@ -90,13 +90,6 @@
                 <li class="nav-item restricted mgmt" data-page="clients" onclick="app.navigate('clients')">
                     <a href="#"><i class='bx bx-group'></i> Clients</a>
                 </li>
-                <li class="nav-item restricted mgmt" data-page="reminders" onclick="app.navigate('reminders')">
-                    <a href="#" style="display: flex; align-items: center; justify-content: space-between;">
-                        <span><i class='bx bxl-whatsapp'></i> Reminders Sent</span>
-                        <span id="reminder-count-badge"
-                            style="display:none; background: #25d366; color:#000; font-size:10px; font-weight:700; padding:2px 7px; border-radius:10px; min-width:18px; align-items:center; justify-content:center;">0</span>
-                    </a>
-                </li>
                 <li class="nav-item restricted mgmt" data-page="analytics" onclick="app.navigate('analytics')">
                     <a href="#"><i class='bx bx-bar-chart-alt-2'></i> Analytics</a>
                 </li>
@@ -246,21 +239,16 @@
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <!-- Page: Reminders Sent -->
-                <div id="page-reminders" class="page-section">
-                    <div class="dashboard-header split">
+                    <div class="dashboard-header split" style="margin-top: 40px; margin-bottom: 20px;">
                         <div>
                             <h1>Reminders Sent</h1>
                             <p class="subtitle">All clients who received a WhatsApp payment reminder.</p>
                         </div>
                     </div>
                     <div class="card-horizontal-scroller">
-                        <div class="glass" style="padding: 20px; min-height: 300px;">
-                            <div id="reminders-content">
-                                <!-- Populated by JS -->
-                            </div>
+                        <div class="dashboard-horizontal-cards" id="reminders-content" style="padding: 10px 0;">
+                            <!-- Populated by JS Preview style -->
                         </div>
                     </div>
                 </div>
