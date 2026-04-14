@@ -10,6 +10,8 @@
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
     <!-- Intl-Tel-Input CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/css/intlTelInput.css" />
+    <script src="https://apis.google.com/js/api.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 
 <body>
@@ -57,8 +59,15 @@
                 <input type="hidden" id="login-role">
                 <div class="form-group" style="text-align: left;">
                     <label>Password</label>
-                    <input type="password" id="login-password" placeholder="Enter secure password" required
-                        autocomplete="current-password">
+                    <div style="position: relative;">
+                        <input type="password" id="login-password" placeholder="Enter secure password" required
+                            autocomplete="current-password" style="padding-right: 44px;">
+                        <button type="button" id="toggle-login-pass"
+                            onclick="app.togglePasswordVisibility('login-password','toggle-login-pass')"
+                            style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; color:var(--text-muted); font-size:18px; display:flex; align-items:center; padding:0;">
+                            <i class='bx bx-hide'></i>
+                        </button>
+                    </div>
                     <small style="color: var(--text-muted); font-size: 11px; display: block; margin-top: 5px;">Required:
                         Min 8 chars, 1 Uppercase, 1 Lowercase, 1 Number, 1 Special Char (@$!%*?&)</small>
                 </div>
@@ -93,6 +102,12 @@
                 <li class="nav-item restricted mgmt" data-page="analytics" onclick="app.navigate('analytics')">
                     <a href="#"><i class='bx bx-bar-chart-alt-2'></i> Analytics</a>
                 </li>
+                <li class="nav-item restricted owner-only" data-page="employees" onclick="app.navigate('employees')">
+                    <a href="#"><i class='bx bx-briefcase-alt'></i> Employees</a>
+                </li>
+                <li class="nav-item restricted owner-only" data-page="students" onclick="app.navigate('students')">
+                    <a href="#"><i class='bx bx-book-reader'></i> Students</a>
+                </li>
                 <li class="nav-item" data-page="settings" onclick="app.navigate('settings')">
                     <a href="#"><i class='bx bx-cog'></i> Settings</a>
                 </li>
@@ -101,18 +116,26 @@
 
         <main class="main-content">
             <header class="topbar glass-header">
-                <div class="search-bar">
-                    <i class='bx bx-search'></i>
-                    <input type="text" id="global-search" placeholder="Search by client name, project..."
-                        oninput="app.handleSearch(this.value)">
+                <div style="display: flex; flex-direction: column; justify-content: center;">
+                    <h1 id="welcome-message" style="font-size: 20px; font-weight: 600; margin: 0; line-height: 1.2;">
+                        Welcome</h1>
+                    <p class="subtitle" style="font-size: 13px; margin: 0; color: var(--text-muted);">Here's your studio
+                        overview</p>
                 </div>
-                <div class="user-info">
-                    <span id="user-role-badge" class="badge">Role</span>
-                    <button class="btn-icon" onclick="app.logout()" title="Logout"><i
-                            class='bx bx-log-out'></i></button>
-                    <button class="btn-icon" onclick="app.sendTestNotification()" title="Send Test Notification"><i
-                            class='bx bx-bell'></i></button>
-                    <div class="avatar"><i class='bx bx-user'></i></div>
+                <div style="display: flex; gap: 15px; align-items: center;">
+                    <div class="search-bar">
+                        <i class='bx bx-search'></i>
+                        <input type="text" id="global-search" placeholder="Search by client name, project..."
+                            oninput="app.handleSearch(this.value)">
+                    </div>
+                    <div class="user-info">
+                        <span id="user-role-badge" class="badge">Role</span>
+                        <button class="btn-icon" onclick="app.logout()" title="Logout"><i
+                                class='bx bx-log-out'></i></button>
+                        <button class="btn-icon" onclick="app.sendTestNotification()" title="Send Test Notification"><i
+                                class='bx bx-bell'></i></button>
+                        <div class="avatar"><i class='bx bx-user'></i></div>
+                    </div>
                 </div>
             </header>
 
@@ -120,11 +143,7 @@
 
                 <!-- Page: Dashboard -->
                 <div id="page-dashboard" class="page-section section-active">
-                    <div class="dashboard-header split">
-                        <div>
-                            <h1 id="welcome-message">Welcome</h1>
-                            <p class="subtitle">Here's your studio overview for today.</p>
-                        </div>
+                    <div class="dashboard-header split" style="margin-bottom: 20px; justify-content: flex-end;">
                         <button class="btn-primary restricted owner-only" onclick="app.openModal()">
                             <i class='bx bx-plus'></i> New Follow-up
                         </button>
@@ -132,21 +151,23 @@
 
                     <!-- Stats blocks -->
                     <div class="stats-grid">
-                        <div class="stat-card glass">
+                        <div class="stat-card glass" onclick="app.setDashboardFilter('All')" style="cursor: pointer;">
                             <div class="stat-icon"><i class='bx bx-list-ul'></i></div>
                             <div class="stat-details">
                                 <h3>Total Tasks</h3>
                                 <h2 id="stat-total">0</h2>
                             </div>
                         </div>
-                        <div class="stat-card glass">
+                        <div class="stat-card glass" onclick="app.setDashboardFilter('Pending')"
+                            style="cursor: pointer;">
                             <div class="stat-icon pending"><i class='bx bx-time'></i></div>
                             <div class="stat-details">
                                 <h3>Pending</h3>
                                 <h2 id="stat-pending">0</h2>
                             </div>
                         </div>
-                        <div class="stat-card glass">
+                        <div class="stat-card glass" onclick="app.setDashboardFilter('Completed')"
+                            style="cursor: pointer;">
                             <div class="stat-icon completed"><i class='bx bx-check-double'></i></div>
                             <div class="stat-details">
                                 <h3>Completed</h3>
@@ -170,85 +191,115 @@
                     </div>
                 </div>
 
-                <!-- Page: Follow-ups -->
-                <div id="page-followups" class="page-section">
-                    <div class="dashboard-header split">
-                        <div>
-                            <h1>All Follow-ups</h1>
-                            <p class="subtitle">Manage all tasks and artworks here.</p>
-                        </div>
-                        <button class="btn-primary restricted owner-only" onclick="app.openModal()">
-                            <i class='bx bx-plus'></i> Add New
-                        </button>
-                    </div>
-                    <div class="card-horizontal-scroller">
-                        <div class="followup-list glass" id="full-followup-container" style="min-height: 400px;">
-                            <!-- Populated by JS Full List -->
-                        </div>
-                    </div>
-                </div>
 
-                <!-- Page: Team Management -->
-                <div id="page-team" class="page-section">
-                    <div class="dashboard-header split">
-                        <div>
-                            <h1>Team Directory</h1>
-                            <p class="subtitle">Insert, update, and remove Team members.</p>
-                        </div>
-                        <button class="btn-primary" onclick="app.openTeamModal()">
-                            <i class='bx bx-user-plus'></i> Add Team
-                        </button>
-                    </div>
-                    <div class="card-horizontal-scroller">
-                        <div class="followup-list glass" id="team-container" style="min-height: 400px;">
-                            <!-- Populated by JS -->
-                        </div>
-                    </div>
-                </div>
 
-                <!-- Page: Clients -->
-                <div id="page-clients" class="page-section">
+                <!-- Page: Employees -->
+                <div id="page-employees" class="page-section">
                     <div class="dashboard-header split">
                         <div>
-                            <h1>Client Directory</h1>
-                            <p class="subtitle">Manage all studio clients and their details.</p>
+                            <h1>Employees Dashboard</h1>
+                            <p class="subtitle">Manage staff salary and payment records.</p>
                         </div>
-                        <button class="btn-primary"
-                            onclick="app.showAlert('Clients are automatically imported and synced from your Follow-ups.', 'Auto Sync Active')">
-                            <i class='bx bx-info-circle'></i> Auto Synced
+                        <button class="btn-primary" onclick="app.navigate('team')"
+                            title="Go to Team Directory to Add Staff">
+                            <i class='bx bx-user-plus'></i> Manage Staff
                         </button>
                     </div>
+
+                    <div class="stats-grid" id="employees-stats">
+                        <div class="stat-card glass"
+                            style="flex-direction: column; align-items: flex-start; min-width: 250px;">
+                            <h3 style="color: var(--text-muted);">Total Base Salary</h3>
+                            <h2 id="emp-stat-base" style="font-size: 32px; color: var(--primary);">₹ 0</h2>
+                        </div>
+                        <div class="stat-card glass"
+                            style="flex-direction: column; align-items: flex-start; min-width: 250px;">
+                            <h3 style="color: var(--text-muted);">Total Paid</h3>
+                            <h2 id="emp-stat-paid" style="font-size: 32px; color: var(--success);">₹ 0</h2>
+                        </div>
+                        <div class="stat-card glass"
+                            style="flex-direction: column; align-items: flex-start; min-width: 250px;">
+                            <h3 style="color: var(--text-muted);">Pending Salary</h3>
+                            <h2 id="emp-stat-pending" style="font-size: 32px; color: var(--warning);">₹ 0</h2>
+                        </div>
+                    </div>
+
                     <div class="card-horizontal-scroller">
-                        <div class="glass" style="padding: 20px;">
+                        <div class="glass" style="padding: 10px;">
                             <div class="table-responsive">
                                 <table class="artis-table" style="min-width: 800px;">
                                     <thead>
                                         <tr>
-                                            <th>Client Name</th>
-                                            <th>Primary Phone</th>
-                                            <th>City, State</th>
-                                            <th>Total Projects</th>
-                                            <th>Gross Revenue (₹)</th>
-                                            <th>Action</th>
+                                            <th>Employee Name</th>
+                                            <th>Role</th>
+                                            <th>Phone</th>
+                                            <th>Base Salary (₹)</th>
+                                            <th>Paid (₹)</th>
+                                            <th>Remaining (₹)</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
                                         </tr>
                                     </thead>
-                                    <tbody id="clients-tbody">
+                                    <tbody id="employees-tbody">
                                         <!-- Populated by JS -->
                                     </tbody>
                                 </table>
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <div class="dashboard-header split" style="margin-top: 40px; margin-bottom: 20px;">
+                <!-- Page: Students -->
+                <div id="page-students" class="page-section">
+                    <div class="dashboard-header split">
                         <div>
-                            <h1>Reminders Sent</h1>
-                            <p class="subtitle">All clients who received a WhatsApp payment reminder.</p>
+                            <h1>Students Dashboard</h1>
+                            <p class="subtitle">Manage student admissions and fee records.</p>
+                        </div>
+                        <button class="btn-primary" onclick="app.openStudentModal()">
+                            <i class='bx bx-user-plus'></i> Add New Student
+                        </button>
+                    </div>
+
+                    <div class="stats-grid" id="students-stats">
+                        <div class="stat-card glass"
+                            style="flex-direction: column; align-items: flex-start; min-width: 250px;">
+                            <h3 style="color: var(--text-muted);">Expected Monthly Fees</h3>
+                            <h2 id="student-stat-total" style="font-size: 32px; color: var(--primary);">₹ 0</h2>
+                        </div>
+                        <div class="stat-card glass"
+                            style="flex-direction: column; align-items: flex-start; min-width: 250px;">
+                            <h3 style="color: var(--text-muted);">Total Received</h3>
+                            <h2 id="student-stat-paid" style="font-size: 32px; color: var(--success);">₹ 0</h2>
+                        </div>
+                        <div class="stat-card glass"
+                            style="flex-direction: column; align-items: flex-start; min-width: 250px;">
+                            <h3 style="color: var(--text-muted);">Pending Fees</h3>
+                            <h2 id="student-stat-pending" style="font-size: 32px; color: var(--warning);">₹ 0</h2>
                         </div>
                     </div>
+
                     <div class="card-horizontal-scroller">
-                        <div class="dashboard-horizontal-cards" id="reminders-content" style="padding: 10px 0;">
-                            <!-- Populated by JS Preview style -->
+                        <div class="glass" style="padding: 10px;">
+                            <div class="table-responsive">
+                                <table class="artis-table" style="min-width: 800px;">
+                                    <thead>
+                                        <tr>
+                                            <th>Student Name</th>
+                                            <th>City</th>
+                                            <th>Course</th>
+                                            <th>Phone</th>
+                                            <th>Monthly Fee (₹)</th>
+                                            <th>Received (₹)</th>
+                                            <th>Remaining (₹)</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="students-tbody">
+                                        <!-- Populated by JS -->
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -290,78 +341,191 @@
 
                     </div>
                 </div>
-                <!-- Page: Settings -->
-                <div id="page-settings" class="page-section">
-                    <div class="dashboard-header split">
-                        <div>
-                            <h1>Settings</h1>
-                            <p class="subtitle">Customize your CRM experience.</p>
-                        </div>
+
+            <!-- Page: Follow-ups -->
+            <div id="page-followups" class="page-section">
+                <div class="dashboard-header split" style="margin-bottom: 20px;">
+                    <div>
+                        <h1>All Follow-ups</h1>
+                        <p class="subtitle">Manage all tasks and artworks here.</p>
                     </div>
-
-                    <div style="display: flex; gap: 30px; flex-wrap: wrap; margin-bottom: 30px;">
-                        <div class="glass" style="padding: 30px; flex: 1; min-width: 300px;">
-                            <h3 style="margin-bottom: 20px; color: var(--primary);">Profile Settings</h3>
-                            <div class="form-group">
-                                <label>Studio Name</label>
-                                <input type="text" value="Artis Studio Co.">
-                            </div>
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label>Notification Email</label>
-                                    <input type="email" value="admin@artis.com">
-                                </div>
-                                <div class="form-group">
-                                    <label>Currency</label>
-                                    <select>
-                                        <option>INR (₹)</option>
-                                        <option>USD ($)</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <h3 style="margin: 30px 0 20px; color: var(--primary);">Theme</h3>
-                            <div style="display: flex; gap: 15px; margin-bottom: 20px;">
-                                <label style="display: flex; align-items: center; gap: 8px;"><input type="radio"
-                                        name="theme" value="dark" onchange="app.switchTheme(this.value)" checked> Dark
-                                    Glass</label>
-                                <label style="display: flex; align-items: center; gap: 8px;"><input type="radio"
-                                        name="theme" value="light" onchange="app.switchTheme(this.value)"> Light
-                                    Minimal</label>
-                            </div>
-                            <button class="btn-secondary"
-                                onclick="app.showAlert('Settings saved successfully!', 'Success')">Save
-                                Preferences</button>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <div
+                            style="background: rgba(255,255,255,0.05); padding: 4px; border-radius: 8px; display: flex; gap: 4px; border: 1px solid var(--glass-border);">
+                            <button id="tab-active-fw" class="btn-primary" onclick="app.setFollowUpTab('Active')"
+                                style="padding: 6px 12px; font-size: 13px; border: none; box-shadow: none;">Active</button>
+                            <button id="tab-completed-fw" class="btn-secondary"
+                                onclick="app.setFollowUpTab('Completed')"
+                                style="padding: 6px 12px; font-size: 13px; border: none;">Completed</button>
                         </div>
+                        <button class="btn-primary restricted owner-manager" onclick="app.openModal()">
+                            <i class='bx bx-plus'></i> Add New
+                        </button>
+                    </div>
+                </div>
+                <div class="card-horizontal-scroller">
+                    <div class="followup-list glass" id="full-followup-container" style="min-height: 400px;">
+                        <!-- Populated by JS Full List -->
+                    </div>
+                </div>
+            </div>
 
-                        <!-- Change Password Block -->
-                        <div class="glass" style="padding: 30px; flex: 1; min-width: 300px;"
-                            id="settings-password-block">
-                            <h3 style="margin-bottom: 20px; color: var(--primary);">Change Password</h3>
-                            <form id="change-pass-form">
-                                <div id="pass-msg" class="error-text" style="display: none;"></div>
-                                <div class="form-group">
-                                    <label>Current Password</label>
-                                    <input type="password" id="cp-current" required>
-                                </div>
-                                <div class="form-group">
-                                    <label>New Password</label>
-                                    <input type="password" id="cp-new" required>
-                                    <small
-                                        style="color: var(--text-muted); font-size: 11px; display: block; margin-top: 5px;">Must
-                                        have Min 8 chars, 1 Uppercase, 1 Lowercase, 1 Number, 1 Special Char.</small>
-                                </div>
-                                <div class="form-group">
-                                    <label>Confirm New Password</label>
-                                    <input type="password" id="cp-confirm" required>
-                                </div>
-                                <button type="submit" class="btn-primary">Update Password</button>
-                            </form>
+            <!-- Page: Team Management -->
+            <div id="page-team" class="page-section">
+                <div class="dashboard-header split">
+                    <div>
+                        <h1>Team Directory</h1>
+                        <p class="subtitle">Insert, update, and remove Team members.</p>
+                    </div>
+                    <button class="btn-primary" onclick="app.openTeamModal()">
+                        <i class='bx bx-user-plus'></i> Add Team
+                    </button>
+                </div>
+                <div class="card-horizontal-scroller">
+                    <div class="followup-list glass" id="team-container" style="min-height: 400px;">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Page: Clients -->
+            <div id="page-clients" class="page-section">
+                <div class="dashboard-header split">
+                    <div>
+                        <h1>Client Directory</h1>
+                        <p class="subtitle">Manage all studio clients and their details.</p>
+                    </div>
+                    <button class="btn-primary"
+                        onclick="app.showAlert('Clients are automatically imported and synced from your Follow-ups.', 'Auto Sync Active')">
+                        <i class='bx bx-info-circle'></i> Auto Synced
+                    </button>
+                </div>
+                <div class="card-horizontal-scroller">
+                    <div class="glass" style="padding: 10px;">
+                        <div class="table-responsive">
+                            <table class="artis-table" style="min-width: 800px;">
+                                <thead>
+                                    <tr>
+                                        <th>Client Name</th>
+                                        <th>Primary Phone</th>
+                                        <th>City, State</th>
+                                        <th>Total Projects</th>
+                                        <th>Gross Revenue (₹)</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="clients-tbody">
+                                    <!-- Populated by JS -->
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
 
+                <div class="dashboard-header split" style="margin-top: 40px; margin-bottom: 20px;">
+                    <div>
+                        <h1>Reminders Sent</h1>
+                        <p class="subtitle">All clients who received a WhatsApp payment reminder.</p>
+                    </div>
+                </div>
+                <div class="card-horizontal-scroller">
+                    <div class="dashboard-horizontal-cards" id="reminders-content">
+                        <!-- Populated by JS Preview style -->
+                    </div>
+                </div>
             </div>
-        </main>
+
+            <!-- Page: Settings -->
+            <div id="page-settings" class="page-section">
+                <div class="dashboard-header split">
+                    <div>
+                        <h1>Settings</h1>
+                        <p class="subtitle">Customize your CRM experience.</p>
+                    </div>
+                </div>
+
+                <div
+                    style="display: flex; justify-content: center; gap: 24px; flex-wrap: wrap; margin-bottom: 30px; margin-top: 30px;">
+                    <div class="glass" style="padding: 15px 20px; flex: 1; min-width: 300px;">
+                        <h3 style="margin-bottom: 15px; color: var(--primary);">Profile Settings</h3>
+                        <div class="form-group">
+                            <label>Studio Name</label>
+                            <input type="text" value="Artis Studio Co.">
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Notification Email</label>
+                                <input type="email" value="admin@artis.com">
+                            </div>
+                            <div class="form-group">
+                                <label>Currency</label>
+                                <select>
+                                    <option>INR (₹)</option>
+                                    <option>USD ($)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <h3 style="margin: 30px 0 20px; color: var(--primary);">Backup Ecosystem ☁️</h3>
+                        <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
+                            <p style="color: var(--text-muted); font-size: 13px;">Connect Google Drive to safely export
+                                and auto-sync records.</p>
+                            <button id="authorize_drive_btn" class="btn-primary"
+                                style="background: #4285F4; border: none; width: fit-content;"
+                                onclick="app.handleGoogleAuthClick()">
+                                <i class='bx bxl-google'></i> Connect Google Drive
+                            </button>
+                            <button id="sync_drive_btn" class="btn-secondary"
+                                style="display: none; border: 1px solid var(--success); color: var(--success); width: fit-content;"
+                                onclick="app.backupToGoogleDrive()">
+                                <i class='bx bx-cloud-upload'></i> Force Backup Now
+                            </button>
+                            <div id="drive-status"
+                                style="font-size: 12px; font-weight: 500; margin-top: 5px; color: var(--warning);">
+                                Status: Disconnected</div>
+                        </div>
+                        <h3 style="margin: 30px 0 20px; color: var(--primary);">Theme</h3>
+                        <div style="display: flex; gap: 15px; margin-bottom: 20px;">
+                            <label style="display: flex; align-items: center; gap: 8px;"><input type="radio"
+                                    name="theme" value="dark" onchange="app.switchTheme(this.value)" checked> Dark
+                                Glass</label>
+                            <label style="display: flex; align-items: center; gap: 8px;"><input type="radio"
+                                    name="theme" value="light" onchange="app.switchTheme(this.value)"> Light
+                                Minimal</label>
+                        </div>
+                        <button class="btn-secondary"
+                            onclick="app.showAlert('Settings saved successfully!', 'Success')">Save
+                            Preferences</button>
+                    </div>
+
+                    <!-- Change Password Block -->
+                    <div class="glass" style="padding: 15px 20px; flex: 1; min-width: 300px;"
+                        id="settings-password-block">
+                        <h3 style="margin-bottom: 15px; color: var(--primary);">Change Password</h3>
+                        <form id="change-pass-form">
+                            <div id="pass-msg" class="error-text" style="display: none;"></div>
+                            <div class="form-group">
+                                <label>Current Password</label>
+                                <input type="password" id="cp-current" required>
+                            </div>
+                            <div class="form-group">
+                                <label>New Password</label>
+                                <input type="password" id="cp-new" required>
+                                <small
+                                    style="color: var(--text-muted); font-size: 11px; display: block; margin-top: 5px;">Must
+                                    have Min 8 chars, 1 Uppercase, 1 Lowercase, 1 Number, 1 Special Char.</small>
+                            </div>
+                            <div class="form-group">
+                                <label>Confirm New Password</label>
+                                <input type="password" id="cp-confirm" required>
+                            </div>
+                            <button type="submit" class="btn-primary">Update Password</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+    </div>
+    </main>
     </div>
 
     <!-- Modal for new/edit follow-up -->
@@ -523,6 +687,174 @@
                 <div id="assign-member-list" style="display: flex; flex-direction: column; gap: 10px;">
                     <!-- Populated by JS -->
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Employee Salary Payment -->
+    <div id="salary-modal" class="modal-overlay">
+        <div class="modal glass animate-pop">
+            <div class="modal-header">
+                <h2 id="salary-modal-title">Employee Salary</h2>
+                <button class="btn-icon" onclick="app.closeSalaryModal()"><i class='bx bx-x'></i></button>
+            </div>
+            <form id="salary-form">
+                <input type="hidden" id="sal-emp-id">
+                <div class="form-group">
+                    <label>Employee Name</label>
+                    <input type="text" id="sal-emp-name" readonly
+                        style="background: rgba(255,255,255,0.02); color: var(--text-light);">
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Base Salary (₹)</label>
+                        <input type="number" id="sal-base" oninput="app.calculateSalaryRemaining()" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Amount Paid (₹)</label>
+                        <input type="number" id="sal-paid" oninput="app.calculateSalaryRemaining()" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Remaining (₹)</label>
+                        <input type="number" id="sal-remaining" readonly
+                            style="background: rgba(255,255,255,0.02); color: var(--warning);">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Payment Note</label>
+                    <input type="text" id="sal-note" placeholder="e.g. Month of April">
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="app.closeSalaryModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Save Payment</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal for Student Records -->
+    <div id="student-modal" class="modal-overlay">
+        <div class="modal glass animate-pop" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2 id="student-modal-title">Add New Student</h2>
+                <button class="btn-icon" onclick="app.closeStudentModal()"><i class='bx bx-x'></i></button>
+            </div>
+            <form id="student-form">
+                <input type="hidden" id="stu-id">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Student Name</label>
+                        <input type="text" id="stu-name" required placeholder="e.g. Ayush Sharma">
+                    </div>
+                    <div class="form-group">
+                        <label>Course</label>
+                        <input type="text" id="stu-course" required placeholder="e.g. Fine Arts">
+                    </div>
+                    <div class="form-group">
+                        <label>Phone Number</label>
+                        <input type="tel" id="stu-phone" required placeholder="9876543210">
+                    </div>
+                    <div class="form-group">
+                        <label>City/Branch</label>
+                        <input type="text" id="stu-location" placeholder="e.g. Mumbai">
+                    </div>
+                    <div class="form-group">
+                        <label>Admission Date</label>
+                        <input type="date" id="stu-date" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Monthly Fee (₹)</label>
+                        <input type="number" id="stu-fee" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Internal Note / Contract</label>
+                    <textarea id="stu-note" rows="2" placeholder="Any specific terms..."></textarea>
+                </div>
+                <div id="student-drive-confirm" style="display:none; color:var(--success); font-size:12px; margin-bottom:10px;">
+                    <i class='bx bx-cloud-upload'></i> Syncing with Google Drive...
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="app.closeStudentModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Save Student</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal for Student Fees -->
+    <div id="fee-modal" class="modal-overlay">
+        <div class="modal glass animate-pop">
+            <div class="modal-header">
+                <h2 id="fee-modal-title">Student Fee Receipt</h2>
+                <button class="btn-icon" onclick="app.closeFeeModal()"><i class='bx bx-x'></i></button>
+            </div>
+            <form id="fee-form">
+                <input type="hidden" id="fee-stu-id">
+                <div class="form-group">
+                    <label>Student Name</label>
+                    <input type="text" id="fee-stu-name" readonly style="background: rgba(255,255,255,0.02); color: var(--text-light);">
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Expected Fee (₹)</label>
+                        <input type="number" id="fee-base" oninput="app.calculateFeeRemaining()" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Amount Received (₹)</label>
+                        <input type="number" id="fee-charged" oninput="app.calculateFeeRemaining()" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Balance Pending (₹)</label>
+                        <input type="number" id="fee-remaining" readonly style="background: rgba(255,255,255,0.02); color: var(--warning);">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Payment Mode / Note</label>
+                    <input type="text" id="fee-note" placeholder="e.g. Cash / GPay - April">
+                </div>
+                <input type="hidden" id="fee-location">
+                <div id="drive-fee-confirm" style="display:none; color:var(--success); font-size:12px; margin-bottom:10px;">
+                    <i class='bx bx-cloud-upload'></i> Syncing fee record...
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="app.closeFeeModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Receive ₹ Fee</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Student Detail Modal -->
+    <div id="student-detail-modal" class="modal-overlay">
+        <div class="modal glass animate-pop" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2>Student Profile</h2>
+                <button class="btn-icon" onclick="app.closeStudentDetail()"><i class='bx bx-x'></i></button>
+            </div>
+            <div id="sd-header-info" style="padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <!-- Populated by JS -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn-primary" onclick="app.closeStudentDetail()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Employee Detail Modal -->
+    <div id="employee-detail-modal" class="modal-overlay">
+        <div class="modal glass animate-pop" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2>Employee Profile</h2>
+                <button class="btn-icon" onclick="app.closeEmployeeDetail()"><i class='bx bx-x'></i></button>
+            </div>
+            <div id="ed-header-info" style="padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <!-- Populated by JS -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn-primary" onclick="app.closeEmployeeDetail()">Close</button>
             </div>
         </div>
     </div>
