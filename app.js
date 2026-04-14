@@ -1,6 +1,3 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
-import { getDatabase, ref, push, onChildAdded, query, limitToLast, update } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-database.js";
-
 const firebaseConfig = {
     apiKey: "AIzaSyDpkLi2XtoPpDTlk5GVroB4T_jRUWldFH4",
     authDomain: "crm-45045.firebaseapp.com",
@@ -12,10 +9,12 @@ const firebaseConfig = {
     databaseURL: "https://crm-45045-default-rtdb.firebaseio.com"
 };
 
-const firebaseApp = initializeApp(firebaseConfig);
 let db = null;
 try {
-    db = getDatabase(firebaseApp);
+    if (typeof firebase !== 'undefined') {
+        const firebaseApp = firebase.initializeApp(firebaseConfig);
+        db = firebaseApp.database();
+    }
 } catch (e) { console.error(e); }
 
 const CITY_STATE_MAP = {
@@ -42,12 +41,16 @@ class ArtStudioCRM {
     constructor() {
         this.currentUser = null;
         this.followUps = [];
+        this.clients = [];
         this.teamMembers = [];
+        this.students = [];
         this.passwords = {};
         this.paymentReminders = [];
         this.currentAssignTaskId = null;
         this.confirmCallback = null;
         this.searchQuery = '';
+        this.dashboardFilter = 'All';
+        this.followUpTab = 'Active';
         this.initTime = Date.now();
         this.acceptedNotifications = JSON.parse(localStorage.getItem('artis_accepted_notifs')) || [];
         this.notificationQueue = [];
@@ -55,11 +58,39 @@ class ArtStudioCRM {
         this.init();
     }
 
+    setDashboardFilter(filter) {
+        this.dashboardFilter = filter;
+        this.renderFollowUpsPreview();
+    }
+
+    setFollowUpTab(tab) {
+        this.followUpTab = tab;
+        const activeBtn = document.getElementById('tab-active-fw');
+        const completedBtn = document.getElementById('tab-completed-fw');
+
+        if (activeBtn) {
+            activeBtn.className = tab === 'Active' ? 'btn-primary' : 'btn-secondary';
+            activeBtn.style.background = tab === 'Active' ? 'var(--primary)' : 'transparent';
+            activeBtn.style.color = tab === 'Active' ? '#fff' : 'var(--text-light)';
+            activeBtn.style.border = tab === 'Active' ? 'none' : '1px solid var(--glass-border)';
+            activeBtn.style.boxShadow = tab === 'Active' ? 'none' : 'none';
+        }
+        if (completedBtn) {
+            completedBtn.className = tab === 'Completed' ? 'btn-primary' : 'btn-secondary';
+            completedBtn.style.background = tab === 'Completed' ? 'var(--primary)' : 'transparent';
+            completedBtn.style.color = tab === 'Completed' ? '#fff' : 'var(--text-light)';
+            completedBtn.style.border = tab === 'Completed' ? 'none' : '1px solid var(--glass-border)';
+            completedBtn.style.boxShadow = tab === 'Completed' ? 'none' : 'none';
+        }
+        this.renderFollowUpsFull();
+    }
+
     init() {
         this.populateCityDropdown();
         this.loadData();
         this.checkAuth();
         this.setupEventListeners();
+        this.setupSliderDrag();
 
         // Setup Firebase Real-time cross-device notifications
         if ("Notification" in window && Notification.permission !== "granted" && Notification.permission !== "denied") {
@@ -132,9 +163,7 @@ class ArtStudioCRM {
         this.notificationListenerStarted = true;
 
         try {
-            const notifRef = ref(db, 'studio_notifications');
-            const recentNotifs = query(notifRef, limitToLast(50));
-            onChildAdded(recentNotifs, (snapshot) => {
+            db.ref('studio_notifications').limitToLast(50).on('child_added', (snapshot) => {
                 const data = snapshot.val();
                 const notifId = snapshot.key;
                 console.debug('[notif] onChildAdded received', { notifId, data, currentUser: this.currentUser });
@@ -252,7 +281,7 @@ class ArtStudioCRM {
 
             if (db && !current.id.startsWith('local_')) {
                 try {
-                    update(ref(db, 'studio_notifications/' + current.id), { globalAccepted: true });
+                    db.ref('studio_notifications/' + current.id).update({ globalAccepted: true });
                 } catch (e) { console.debug('Failed to global accept notif', e); }
             }
         }
@@ -329,7 +358,7 @@ class ArtStudioCRM {
 
         if (!this.currentUser || !db) return;
         try {
-            push(ref(db, 'studio_notifications'), payload);
+            db.ref('studio_notifications').push(payload);
         } catch (e) {
             console.log("Firebase DB Push Failed", e);
         }
@@ -383,6 +412,13 @@ class ArtStudioCRM {
     }
 
     loadData() {
+        const storedClients = localStorage.getItem('artis_crm_clients');
+        if (storedClients) {
+            this.clients = JSON.parse(storedClients);
+        } else {
+            this.clients = [];
+        }
+
         const storedReminders = localStorage.getItem('artis_crm_reminders');
         this.paymentReminders = storedReminders ? JSON.parse(storedReminders) : [];
 
@@ -420,6 +456,24 @@ class ArtStudioCRM {
             this.saveData();
         }
 
+        if (!storedClients && this.followUps.length > 0) {
+            let cMap = {};
+            this.followUps.forEach(f => {
+                if (!f.client) return;
+                const key = f.client.trim().toLowerCase();
+                if (!cMap[key]) {
+                    cMap[key] = {
+                        id: Date.now() + Math.random(),
+                        name: f.client,
+                        contact: f.contact || '-',
+                        location: f.location ? (f.state ? `${f.location}, ${f.state}` : f.location) : '-'
+                    };
+                }
+            });
+            this.clients = Object.values(cMap);
+            this.saveClientsData();
+        }
+
         const storedTeam = localStorage.getItem('artis_crm_team');
         if (storedTeam) {
             this.teamMembers = JSON.parse(storedTeam);
@@ -429,6 +483,14 @@ class ArtStudioCRM {
                 { id: 102, name: 'Rahul Kumar', role: 'Team', phone: '+91 8765432109' }
             ];
             this.saveTeamData();
+        }
+
+        const storedStudents = localStorage.getItem('artis_crm_students');
+        if (storedStudents) {
+            this.students = JSON.parse(storedStudents);
+        } else {
+            this.students = [];
+            this.saveStudentsData();
         }
 
         const storedPass = localStorage.getItem('artis_crm_passwords');
@@ -444,7 +506,13 @@ class ArtStudioCRM {
         localStorage.setItem('artis_crm_data', JSON.stringify(this.followUps));
     }
 
+    saveClientsData() {
+        this.autoSyncToDrive();
+        localStorage.setItem('artis_crm_clients', JSON.stringify(this.clients));
+    }
+
     saveTeamData() {
+        this.autoSyncToDrive();
         localStorage.setItem('artis_crm_team', JSON.stringify(this.teamMembers));
     }
 
@@ -481,28 +549,63 @@ class ArtStudioCRM {
         this.backToRoles();
     }
 
+
+    // ==========================================
+    // Monthly Auto-Reset Logic (Real-time 30-day)
+    // ==========================================
+    checkMonthlyReset() {
+        const now = new Date();
+        const currentMonthKey = `${now.getFullYear()}-${now.getMonth() + 1}`;
+        const lastResetKey = localStorage.getItem('artis_salary_reset_month');
+
+        if (lastResetKey !== currentMonthKey) {
+            // New month detected — reset all employee paid salaries
+            this.teamMembers.forEach(m => {
+                m.prevPaidSalary = m.paidSalary || 0; // archive last month
+                m.paidSalary = 0;
+                m.salaryNote = '';
+            });
+            this.saveTeamData();
+
+            this.students.forEach(s => {
+                s.prevChargedFee = s.chargedFee || 0;
+                s.chargedFee = 0;
+                s.feeNote = '';
+            });
+            this.saveStudentsData();
+
+            localStorage.setItem('artis_salary_reset_month', currentMonthKey);
+            console.log('[CRM] Monthly salary and fee reset applied for:', currentMonthKey);
+        }
+    }
+
     showDashboard() {
         document.getElementById('login-view').classList.remove('active');
         document.getElementById('dashboard-view').classList.add('active');
 
+        this.checkMonthlyReset();
         document.getElementById('user-role-badge').textContent = this.currentUser;
         document.getElementById('welcome-message').textContent = `Welcome, ${this.currentUser}`;
 
         const mgmtLinks = document.querySelectorAll('.restricted.mgmt');
         const ownerLinks = document.querySelectorAll('.restricted.owner-only');
+        const ownerManagerLinks = document.querySelectorAll('.restricted.owner-manager');
         const passBlock = document.getElementById('settings-password-block');
 
         if (this.currentUser === 'Team') {
             mgmtLinks.forEach(el => el.style.display = 'none');
             ownerLinks.forEach(el => el.style.display = 'none');
+            ownerManagerLinks.forEach(el => el.style.display = 'none');
             if (passBlock) passBlock.style.display = 'none';
         } else if (this.currentUser === 'Manager') {
             mgmtLinks.forEach(el => el.style.display = 'flex');
             ownerLinks.forEach(el => el.style.display = 'none');
+            ownerManagerLinks.forEach(el => el.style.display = 'flex');
             if (passBlock) passBlock.style.display = 'block';
         } else {
             mgmtLinks.forEach(el => el.style.display = 'flex');
             ownerLinks.forEach(el => el.style.display = 'flex');
+            ownerManagerLinks.forEach(el => el.style.display = 'flex');
             if (passBlock) passBlock.style.display = 'block';
         }
 
@@ -519,12 +622,12 @@ class ArtStudioCRM {
     }
 
     navigate(pageId) {
-        if (this.currentUser === 'Team' && (pageId === 'clients' || pageId === 'analytics' || pageId === 'team' || pageId === 'reminders')) {
+        if (this.currentUser === 'Team' && (pageId === 'clients' || pageId === 'analytics' || pageId === 'team' || pageId === 'reminders' || pageId === 'employees')) {
             this.showAlert('You do not have permission to view this page.', 'Access Denied');
             return;
         }
-        if (this.currentUser === 'Manager' && pageId === 'team') {
-            this.showAlert('Team management is restricted to Owner.', 'Access Denied');
+        if (this.currentUser === 'Manager' && (pageId === 'team' || pageId === 'employees')) {
+            this.showAlert('This page is restricted to Owner.', 'Access Denied');
             return;
         }
 
@@ -538,6 +641,7 @@ class ArtStudioCRM {
         if (pageId === 'dashboard') {
             this.renderStats();
             this.renderFollowUpsPreview();
+
         } else if (pageId === 'followups') {
             this.renderFollowUpsFull();
         } else if (pageId === 'team') {
@@ -548,6 +652,14 @@ class ArtStudioCRM {
             this.renderAnalytics();
         } else if (pageId === 'reminders') {
             this.renderReminders();
+        } else if (pageId === 'students') {
+            if (this.currentUser === 'Owner') {
+                this.renderStudents();
+            } else {
+                this.showAlert('Access Denied. Owner only.', 'Locked');
+            }
+        } else if (pageId === 'employees') {
+            this.renderEmployees();
         } else if (pageId === 'settings') {
             const passMsg = document.getElementById('pass-msg');
             if (passMsg) {
@@ -569,10 +681,13 @@ class ArtStudioCRM {
             if (pId === 'page-dashboard') {
                 this.renderStats();
                 this.renderFollowUpsPreview();
+
             } else if (pId === 'page-followups') {
                 this.renderFollowUpsFull();
             } else if (pId === 'page-analytics') {
                 this.renderAnalytics();
+            } else if (pId === 'page-employees') {
+                this.renderEmployees();
             }
         }
     }
@@ -582,9 +697,8 @@ class ArtStudioCRM {
 
         if (this.currentUser === 'Team') {
             baseList = this.followUps.filter(f => f.assign === 'Team' || (f.assign && f.assign.startsWith('Team:')));
-        } else if (this.currentUser === 'Manager') {
-            baseList = this.followUps.filter(f => f.assign === 'Manager' || (f.assign && f.assign.startsWith('Manager:')));
         }
+        // Manager sees ALL follow-ups (same as Owner) so they can manage the full list
 
         if (this.searchQuery) {
             baseList = baseList.filter(f =>
@@ -615,7 +729,7 @@ class ArtStudioCRM {
     }
 
     renderAnalytics() {
-        // Use all follow-ups (global) to compute analytics across all projects
+        // Use only non-completed, non-deleted follow-ups for total revenue
         const all = this.followUps || [];
         let totalRev = 0;
         let paymentsReceived = 0;
@@ -627,8 +741,10 @@ class ArtStudioCRM {
         const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
         all.forEach(item => {
+            // Only count active (non-completed) items in total revenue
+            const isActive = item.status !== 'Completed';
             const t = parseFloat(item.total) || 0;
-            totalRev += t;
+            if (isActive) totalRev += t;
 
             // Sum payments history if present, otherwise fallback to advance as single payment on item.date
             if (Array.isArray(item.payments) && item.payments.length > 0) {
@@ -689,56 +805,60 @@ class ArtStudioCRM {
         const tbody = document.getElementById('clients-tbody');
         if (!tbody) return;
 
-        let clientMap = {};
-        // Aggregate clients based on all historical and active global followUps data
-        this.followUps.forEach(f => {
-            if (!f.client) return;
-            const key = f.client.trim().toLowerCase();
-            if (!clientMap[key]) {
-                clientMap[key] = {
-                    name: f.client,
-                    contact: f.contact || '-',
-                    location: f.location ? (f.state ? `${f.location}, ${f.state}` : f.location) : '-',
-                    projects: 0,
-                    revenue: 0
-                };
-            }
-            clientMap[key].projects++;
-            clientMap[key].revenue += (f.total || 0);
-
-            // Overwrite placeholder strings with valid strings if encountered later
-            if (clientMap[key].contact === '-' && f.contact) clientMap[key].contact = f.contact;
-            if (clientMap[key].location === '-' && f.location) clientMap[key].location = f.location ? (f.state ? `${f.location}, ${f.state}` : f.location) : '-';
-        });
-
-        // Convert the map to an array and sort by most projects
-        const clients = Object.values(clientMap).sort((a, b) => b.projects - a.projects);
-
-        if (clients.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 20px;">No clients found. Add a follow-up to auto-generate clients.</td></tr>`;
+        if (this.clients.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 20px;">No clients added yet. Clients will automatically generate from follow-ups or can be manually managed.</td></tr>`;
             return;
         }
 
+        // Calculate dynamic specific metrics per client based on follow ups (only for display)
+        let metricsMap = {};
+        this.followUps.forEach(f => {
+            if (!f.client) return;
+            const key = f.client.trim().toLowerCase();
+            if (!metricsMap[key]) metricsMap[key] = { projects: 0, revenue: 0 };
+            metricsMap[key].projects++;
+            metricsMap[key].revenue += (f.total || 0);
+        });
+
         let html = '';
-        clients.forEach(c => {
+        this.clients.forEach(c => {
             const encName = encodeURIComponent(c.name);
             const encPhone = encodeURIComponent(c.contact);
+            const key = c.name.toLowerCase().trim();
+            const projs = metricsMap[key] ? metricsMap[key].projects : 0;
+            const rev = metricsMap[key] ? metricsMap[key].revenue : 0;
+
             html += `
                 <tr style="transition: 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">
                     <td style="font-weight: 600;">${c.name}</td>
                     <td>${c.contact}</td>
                     <td>${c.location}</td>
-                    <td style="color: var(--primary); font-weight: 600;">${c.projects}</td>
-                    <td style="color: var(--success); font-weight: 600;">${this.isAmountVisible() ? `₹${c.revenue}` : '--'}</td>
+                    <td style="color: var(--primary); font-weight: 600;">${projs}</td>
+                    <td style="color: var(--success); font-weight: 600;">${this.isAmountVisible() ? `₹${rev}` : '--'}</td>
                     <td>
-                        <button class="btn-secondary" style="padding: 6px 12px; font-size: 13px; display: flex; align-items: center; gap: 5px;" onclick="app.notifyClient('${encName}', '${encPhone}')" title="Message Client">
-                            <i class='bx bxl-whatsapp' style="font-size: 16px; color: #25d366;"></i> Notify
-                        </button>
+                        <div style="display:flex; gap:8px;">
+                            <button class="btn-secondary" style="padding: 6px 12px; font-size: 13px; display: flex; align-items: center; gap: 5px;" onclick="app.notifyClient('${encName}', '${encPhone}')" title="Message Client">
+                                <i class='bx bxl-whatsapp' style="font-size: 16px; color: #25d366;"></i> Notify
+                            </button>
+                            <button class="btn-secondary restricted owner-only" style="padding: 6px 12px; font-size: 13px; display: flex; align-items: center; gap: 5px; color: var(--danger); border-color: var(--danger);" onclick="app.deleteClient(${c.id})" title="Delete Client">
+                                <i class='bx bx-trash'></i>
+                            </button>
+                        </div>
                     </td>
                 </tr>
             `;
         });
         tbody.innerHTML = html;
+    }
+
+    deleteClient(id) {
+        if (this.currentUser !== 'Owner') return;
+
+        this.showConfirm('Are you sure you want to permanently delete this client? This will NOT delete their Follow-ups, but will remove them from the persistent Directory.', () => {
+            this.clients = this.clients.filter(c => c.id !== id);
+            this.saveClientsData();
+            this.renderClients();
+        }, 'Delete Client?');
     }
 
     notifyClient(encName, encPhone) {
@@ -767,6 +887,10 @@ class ArtStudioCRM {
 
         container.innerHTML = '';
         let data = this.getRelevantFollowUps();
+
+        if (this.dashboardFilter !== 'All') {
+            data = data.filter(f => f.status === this.dashboardFilter);
+        }
 
         data.sort((a, b) => {
             if (a.status === 'Completed' && b.status !== 'Completed') return 1;
@@ -802,8 +926,8 @@ class ArtStudioCRM {
                     const diffTime = itemDate.getTime() - today.getTime();
                     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                     // Urgency thresholds: <=5 days -> red, <=10 -> orange, <=15 -> yellow
-                    if (diffDays <= 5) { urgencyColor = 'var(--danger)'; urgencyClass = 'urgent-red'; }
-                    else if (diffDays <= 10) { urgencyColor = '#ff7a00'; urgencyClass = 'urgent-orange'; }
+                    // Red color removed per request
+                    if (diffDays <= 10) { urgencyColor = '#ff7a00'; urgencyClass = 'urgent-orange'; }
                     else if (diffDays <= 15) { urgencyColor = '#facc15'; urgencyClass = 'urgent-yellow'; }
                     console.debug('[urgency] item', item.id, 'date', item.date, 'diffDays', diffDays, 'class', urgencyClass);
                 }
@@ -904,8 +1028,8 @@ class ArtStudioCRM {
                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
                 // Urgency thresholds: <=5 days -> red, <=10 -> orange, <=15 -> yellow
-                if (diffDays <= 5) { urgencyColor = 'var(--danger)'; urgencyClass = 'urgent-red'; }
-                else if (diffDays <= 10) { urgencyColor = '#ff7a00'; urgencyClass = 'urgent-orange'; }
+                // Red color removed per request
+                if (diffDays <= 10) { urgencyColor = '#ff7a00'; urgencyClass = 'urgent-orange'; }
                 else if (diffDays <= 15) { urgencyColor = '#facc15'; urgencyClass = 'urgent-yellow'; }
                 console.debug('[urgency] item', item.id, 'date', item.date, 'diffDays', diffDays, 'class', urgencyClass);
             }
@@ -984,13 +1108,29 @@ class ArtStudioCRM {
         container.innerHTML = '';
         let data = this.getRelevantFollowUps();
 
-        data.sort((a, b) => {
-            if (a.status === 'Completed' && b.status !== 'Completed') return 1;
-            if (a.status !== 'Completed' && b.status === 'Completed') return -1;
-            const dateA = new Date(a.date);
-            const dateB = new Date(b.date);
-            return dateA - dateB;
-        });
+        if (this.followUpTab === 'Active') {
+            data = data.filter(f => f.status !== 'Completed');
+            data.sort((a, b) => {
+                const dateA = new Date(a.date);
+                const dateB = new Date(b.date);
+                return dateA - dateB;
+            });
+        } else if (this.followUpTab === 'Completed') {
+            data = data.filter(f => f.status === 'Completed');
+            data.sort((a, b) => {
+                const dateA = new Date(a.completedAt || a.date);
+                const dateB = new Date(b.completedAt || b.date);
+                return dateB - dateA;
+            });
+        } else {
+            data.sort((a, b) => {
+                if (a.status === 'Completed' && b.status !== 'Completed') return 1;
+                if (a.status !== 'Completed' && b.status === 'Completed') return -1;
+                const dateA = new Date(a.date);
+                const dateB = new Date(b.date);
+                return dateA - dateB;
+            });
+        }
 
         if (limit) data = data.slice(0, limit);
 
@@ -1002,7 +1142,7 @@ class ArtStudioCRM {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        const showAmounts = this.currentUser === 'Owner';
+        const showAmounts = this.currentUser === 'Owner' || this.currentUser === 'Manager';
 
         let tableHtml = `
             <div class="table-responsive">
@@ -1018,6 +1158,7 @@ class ArtStudioCRM {
                             <th>Size</th>
                             ${showAmounts ? `<th>Project (₹)</th>
                             <th>Advance (₹)</th>
+                            <th>Received (₹)</th>
                             <th>Remaining (₹)</th>` : ''}
                             <th>Deadline</th>
                             <th>Status</th>
@@ -1032,7 +1173,25 @@ class ArtStudioCRM {
                     <tbody>
         `;
 
+        let currentMonthKey = '';
+
         data.forEach((item, index) => {
+            if (this.followUpTab === 'Completed' && item.completedAt) {
+                const cd = new Date(item.completedAt);
+                const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+                const monthKey = `${monthNames[cd.getMonth()]} ${cd.getFullYear()}`;
+                if (monthKey !== currentMonthKey) {
+                    currentMonthKey = monthKey;
+                    tableHtml += `
+                        <tr style="background: rgba(212, 175, 55, 0.1);">
+                            <td colspan="100%" style="font-weight: 600; color: var(--primary); font-size: 13px; padding: 12px 15px;">
+                                <i class='bx bx-calendar'></i> ${monthKey}
+                            </td>
+                        </tr>
+                    `;
+                }
+            }
+
             let statusClass = 'pill-pending';
             if (item.status === 'In Progress') statusClass = 'pill-progress';
             if (item.status === 'Completed') statusClass = 'pill-completed';
@@ -1045,9 +1204,8 @@ class ArtStudioCRM {
                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
                 // Match dashboard thresholds: <=5 days -> red, <=10 -> orange, <=15 -> yellow
-                if (diffDays <= 5) {
-                    urgencyColor = 'var(--danger)';
-                } else if (diffDays <= 10) {
+                // Red color removed per request
+                if (diffDays <= 10) {
                     urgencyColor = '#ff7a00';
                 } else if (diffDays <= 15) {
                     urgencyColor = '#facc15';
@@ -1057,19 +1215,13 @@ class ArtStudioCRM {
 
             let quickAssignHtml = '';
             if (this.currentUser === 'Owner') {
-                quickAssignHtml = `
-                    <button class="btn-quick manager" onclick="event.stopPropagation(); app.openAssignModal(${item.id}, 'Manager')" title="Assign to Manager"><i class='bx bx-briefcase'></i> To Manager</button>
-                    <button class="btn-quick team" onclick="event.stopPropagation(); app.openAssignModal(${item.id}, 'Team')" title="Assign to Team"><i class='bx bx-paint'></i> To Team</button>
-                    <button class="btn-icon" style="color: var(--danger); width: 28px; height: 28px;" title="Delete" onclick="event.stopPropagation(); app.deleteFollowUp(${item.id})"><i class='bx bx-trash'></i></button>
-                `;
+                // Owner layout handled in the template below
+                quickAssignHtml = ''; 
             } else if (this.currentUser === 'Manager' || this.currentUser === 'Team') {
-                // For Manager/Team, only show a Completed action when the task is assigned to them
                 try {
                     const assignedRole = item.assign ? item.assign.split(':')[0].trim() : '';
                     if (assignedRole === this.currentUser && item.status !== 'Completed') {
                         quickAssignHtml = `<button class="btn-quick complete" onclick="event.stopPropagation(); app.markCompleted(${item.id})" title="Mark Completed">✓ Completed</button>`;
-                    } else {
-                        quickAssignHtml = '';
                     }
                 } catch (e) { quickAssignHtml = ''; }
             }
@@ -1112,9 +1264,15 @@ class ArtStudioCRM {
                     <td>${item.location || '-'}${item.state ? ', ' + item.state : ''}</td>
                     <td>${item.style || '-'}</td>
                     <td>${item.size || '-'}</td>
-                    ${showAmounts ? `<td style="color: var(--primary); font-weight: 600;">₹${item.total || 0}</td>
-                    <td style="color: var(--success);">₹${item.advance || 0}</td>
-                    <td style="color: var(--danger);">₹${item.remaining || 0}</td>` : ''}
+                    ${showAmounts ? (() => {
+                    const received = Array.isArray(item.payments) && item.payments.length > 0
+                        ? item.payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0)
+                        : (parseFloat(item.advance) || 0);
+                    return `<td style="color: var(--primary); font-weight: 600;">₹${(item.total || 0).toLocaleString('en-IN')}</td>
+                    <td style="color: #60a5fa; font-weight: 600;">₹${received.toLocaleString('en-IN')}</td>
+                    <td style="color: var(--success);">₹${(item.advance || 0).toLocaleString('en-IN')}</td>
+                    <td style="color: var(--danger);">₹${(item.remaining || 0).toLocaleString('en-IN')}</td>`;
+                })() : ''}
                     <td>${item.date}</td>
                     <td><span class="f-status-pill ${statusClass}">${item.status}</span></td>
                     <td style="text-align: center;">${daysSinceCompletedHtml}</td>
@@ -1122,9 +1280,17 @@ class ArtStudioCRM {
                     <td><div class="truncate-text" title="${item.stagenote}">${item.stagenote || '-'}</div></td>
                     <td><i class='bx bx-user-pin'></i> ${item.assign}</td>
                     <td>
-                        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-                            ${quickAssignHtml}
-                            ${payReminderHtml}
+                        <div style="display: flex; flex-direction: column; gap: 6px; width: max-content;">
+                            <div style="display: flex; gap: 6px;">
+                                ${this.currentUser === 'Owner' ? `
+                                    <button class="btn-quick manager" onclick="event.stopPropagation(); app.openAssignModal(${item.id}, 'Manager')" title="Assign to Manager"><i class='bx bx-briefcase'></i> To Manager</button>
+                                    <button class="btn-quick team" onclick="event.stopPropagation(); app.openAssignModal(${item.id}, 'Team')" title="Assign to Team"><i class='bx bx-paint'></i> To Team</button>
+                                ` : quickAssignHtml}
+                            </div>
+                            <div style="display: flex; gap: 6px; align-items: center;">
+                                ${payReminderHtml}
+                                ${this.currentUser === 'Owner' ? `<button class="btn-icon" style="color: var(--danger); width: 28px; height: 28px; background: rgba(255,255,255,0.05); border-radius: 50%;" title="Delete" onclick="event.stopPropagation(); app.deleteFollowUp(${item.id})"><i class='bx bx-trash'></i></button>` : ''}
+                            </div>
                         </div>
                     </td>
                     <td><div class="truncate-text" title="${item.desc}">${item.desc}</div></td>
@@ -1512,8 +1678,8 @@ Kindly arrange the remaining payment at your earliest convenience. Thank you for
     }
 
     openModal() {
-        // Enforce strong restriction
-        if (this.currentUser !== 'Owner') {
+        // Owner and Manager can add/edit follow-ups
+        if (this.currentUser !== 'Owner' && this.currentUser !== 'Manager') {
             this.showAlert('You do not have permission to add follow-ups.', 'Access Denied');
             return;
         }
@@ -1541,8 +1707,8 @@ Kindly arrange the remaining payment at your earliest convenience. Thank you for
     }
 
     editModal(id) {
-        // Only Owner can open the edit modal
-        if (this.currentUser !== 'Owner') {
+        // Owner and Manager can open the edit modal
+        if (this.currentUser !== 'Owner' && this.currentUser !== 'Manager') {
             this.showAlert('You do not have permission to edit follow-ups.', 'Access Denied');
             return;
         }
@@ -1678,6 +1844,20 @@ Kindly arrange the remaining payment at your earliest convenience. Thank you for
             payments: existingPayments
         };
 
+        const existingClient = this.clients.find(c => c.name.toLowerCase() === clientName.toLowerCase());
+        if (!existingClient) {
+            this.clients.push({
+                id: Date.now() + Math.random(),
+                name: clientName,
+                contact: contact || '-',
+                location: location ? (state ? `${location}, ${state}` : location) : '-'
+            });
+            this.saveClientsData();
+        } else if (contact && existingClient.contact === '-') {
+            existingClient.contact = contact;
+            this.saveClientsData();
+        }
+
         if (id) {
             const idx = this.followUps.findIndex(f => f.id === parseInt(id));
             if (idx > -1) this.followUps[idx] = payload;
@@ -1759,6 +1939,7 @@ Kindly arrange the remaining payment at your earliest convenience. Thank you for
 
         document.getElementById('t-id').value = member.id;
         document.getElementById('t-name').value = member.name;
+        document.getElementById('t-location').value = member.location || '';
         document.getElementById('t-role').value = member.role;
         document.getElementById('t-phone').value = member.phone;
         if (this.tIti) {
@@ -1785,6 +1966,7 @@ Kindly arrange the remaining payment at your earliest convenience. Thank you for
         const payload = {
             id: id ? parseInt(id) : Date.now(),
             name: name,
+            location: document.getElementById('t-location').value.trim(),
             role: role,
             phone: phone
         };
@@ -1811,6 +1993,362 @@ Kindly arrange the remaining payment at your earliest convenience. Thank you for
             this.renderTeam();
         }, 'Remove Member?');
     }
+
+    // ==========================================
+
+    slideInstitute(index) {
+        const slider = document.getElementById('institute-slider');
+        const pill = document.getElementById('institute-pill');
+        const btnStudents = document.getElementById('toggle-students');
+        const btnEmployees = document.getElementById('toggle-employees');
+
+        if (!slider) return;
+
+        if (index === 0) {
+            slider.scrollTo({ left: 0, behavior: 'smooth' });
+            if (pill) pill.style.transform = 'translateX(0)';
+            if (btnStudents) { btnStudents.style.color = '#fff'; btnStudents.classList.add('active'); }
+            if (btnEmployees) { btnEmployees.style.color = 'var(--text-light)'; btnEmployees.classList.remove('active'); }
+        } else {
+            slider.scrollTo({ left: slider.scrollWidth, behavior: 'smooth' });
+            if (pill) pill.style.transform = 'translateX(100%)';
+            if (btnStudents) { btnStudents.style.color = 'var(--text-light)'; btnStudents.classList.remove('active'); }
+            if (btnEmployees) { btnEmployees.style.color = '#fff'; btnEmployees.classList.add('active'); }
+        }
+    }
+
+    // Employees Module Logic
+    // ==========================================
+    renderEmployees() {
+        if (this.currentUser !== 'Owner') return;
+        const tbody = document.getElementById('employees-tbody');
+        if (!tbody) return;
+
+        let totalBase = 0;
+        let totalPaid = 0;
+
+        let html = '';
+        this.teamMembers.forEach(m => {
+            const baseSalary = parseFloat(m.baseSalary) || 0;
+            const paidSalary = parseFloat(m.paidSalary) || 0;
+
+            totalBase += baseSalary;
+            totalPaid += paidSalary;
+
+            html += `
+                <tr style="transition: 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">
+                    <td style="font-weight: 600;">${m.name}</td>
+                    <td>${m.location || '-'}</td>
+                    <td style="color: ${m.role === 'Manager' ? 'var(--primary)' : 'var(--success)'}; font-weight: 500;">${m.role}</td>
+                    <td>${m.phone || '-'}</td>
+                    <td style="color: var(--primary); font-weight: 600;">₹${baseSalary.toLocaleString('en-IN')}</td>
+                    <td style="color: var(--success); font-weight: 600;">₹${paidSalary.toLocaleString('en-IN')}</td>
+                    <td>
+                        <div style="display:flex; gap:8px;">
+                            <button class="btn-quick manager" style="padding: 6px 12px; font-size: 13px;" onclick="app.openSalaryModal(${m.id})">
+                                <i class='bx bx-wallet'></i> Pay
+                            </button>
+                            <button class="btn-quick" style="padding: 6px 12px; font-size: 13px;" onclick="app.openEmployeeDetail(${m.id})">
+                                <i class='bx bx-detail'></i> Details
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        });
+
+        tbody.innerHTML = html.length > 0 ? html : `<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 20px;">No employees in directory.</td></tr>`;
+
+        const statBase = document.getElementById('emp-stat-base');
+        const statPaid = document.getElementById('emp-stat-paid');
+        const statPending = document.getElementById('emp-stat-pending');
+
+        if (statBase) statBase.textContent = `₹ ${totalBase.toLocaleString('en-IN')}`;
+        if (statPaid) statPaid.textContent = `₹ ${totalPaid.toLocaleString('en-IN')}`;
+        if (statPending) statPending.textContent = `₹ ${(totalBase - totalPaid).toLocaleString('en-IN')}`;
+    }
+
+    openSalaryModal(empId) {
+        if (this.currentUser !== 'Owner') return;
+        const emp = this.teamMembers.find(m => m.id === empId);
+        if (!emp) return;
+
+        document.getElementById('salary-form').reset();
+        document.getElementById('sal-emp-id').value = emp.id;
+        document.getElementById('sal-emp-name').value = emp.name;
+        document.getElementById('sal-base').value = emp.baseSalary || 0;
+        document.getElementById('sal-paid').value = emp.paidSalary || 0;
+        document.getElementById('sal-note').value = emp.salaryNote || '';
+        document.getElementById('sal-location').value = emp.location || '';
+        // Hide any leftover confirmation from last open
+        const driveConfirm = document.getElementById('drive-save-confirm');
+        if (driveConfirm) driveConfirm.style.display = 'none';
+        this.calculateSalaryRemaining();
+
+        document.getElementById('salary-modal').classList.add('active');
+    }
+
+    closeSalaryModal() {
+        document.getElementById('salary-modal').classList.remove('active');
+    }
+
+    calculateSalaryRemaining() {
+        const base = parseFloat(document.getElementById('sal-base').value) || 0;
+        const paid = parseFloat(document.getElementById('sal-paid').value) || 0;
+        document.getElementById('sal-remaining').value = (base - paid);
+    }
+
+    saveSalary(e) {
+        e.preventDefault();
+        const empId = parseInt(document.getElementById('sal-emp-id').value);
+        const emp = this.teamMembers.find(m => m.id === empId);
+        if (!emp) return;
+
+        emp.baseSalary = parseFloat(document.getElementById('sal-base').value) || 0;
+        emp.paidSalary = parseFloat(document.getElementById('sal-paid').value) || 0;
+        emp.salaryNote = document.getElementById('sal-note').value;
+        emp.location = (document.getElementById('sal-location').value || '').trim();
+
+        this.saveTeamData();
+        this.renderEmployees();
+
+        // Show Google Drive confirmation banner inside modal
+        const driveConfirm = document.getElementById('drive-save-confirm');
+        if (driveConfirm) {
+            driveConfirm.style.display = 'block';
+            setTimeout(() => { driveConfirm.style.display = 'none'; }, 4000);
+        }
+
+        this.showAlert(`Salary records for ${emp.name} saved and synced to Google Drive.`, '✅ Saved');
+    }
+
+    sendSalaryReminder(phone, name, remaining) {
+        if (!phone || phone === '-') {
+            this.showAlert('No valid phone number found for this employee.', 'Cannot Send WhatsApp');
+            return;
+        }
+
+        const waNum = phone.replace(/[^0-9]/g, '');
+        if (waNum.length < 10) {
+            this.showAlert('The phone number is invalid.', 'Invalid Number');
+            return;
+        }
+
+        const msg = `Hello ${name},\n\nWe have updated your salary details. Note that ₹${remaining.toLocaleString('en-IN')} is still pending for this cycle.\nRegards, Artis Studio`;
+        window.open(`https://wa.me/${waNum}?text=${encodeURIComponent(msg)}`, '_blank');
+    }
+
+    // ==========================================
+    // Students Module Logic (Owner Only)
+    // ==========================================
+    saveStudentsData() {
+        localStorage.setItem('artis_crm_students', JSON.stringify(this.students));
+        this.autoSyncToDrive();
+    }
+
+    renderStudents() {
+        if (this.currentUser !== 'Owner') return;
+        const tbody = document.getElementById('students-tbody');
+        if (!tbody) return;
+
+        let totalMonthlyFees = 0;
+        let totalCharged = 0;
+        let html = '';
+
+        this.students.forEach(s => {
+            const fee = parseFloat(s.monthly_fee) || 0;
+            const chargedFee = parseFloat(s.chargedFee) || 0;
+            totalMonthlyFees += fee;
+            totalCharged += chargedFee;
+
+            html += `<tr style="transition:0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">
+                        <td style="font-weight: 600;">${s.name}</td>
+                        <td>${s.location || '-'}</td>
+                        <td style="color: var(--primary); font-weight: 500;">${s.course}</td>
+                        <td>${s.phone || '-'}</td>
+                        <td style="color: var(--primary); font-weight: 600;">₹${fee.toLocaleString('en-IN')}</td>
+                        <td style="color: var(--success); font-weight: 600;">₹${chargedFee.toLocaleString('en-IN')}</td>
+                        <td style="color: var(--warning); font-weight: 600;">₹${(fee - chargedFee).toLocaleString('en-IN')}</td>
+                        <td>
+                            <div style="display:flex; gap:6px;">
+                                <button class="btn-quick manager" style="padding: 6px 12px; font-size: 13px;" onclick="app.openFeeModal(${s.id})">
+                                    <i class='bx bx-rupee'></i> Receive ₹
+                                </button>
+                                <button class="btn-quick" style="padding: 6px 12px; font-size: 13px;" onclick="app.openStudentDetail(${s.id})">
+                                    <i class='bx bx-detail'></i> Details
+                                </button>
+                                <button class="btn-quick" style="padding: 6px 12px; font-size: 13px;" onclick="app.openStudentModal(${s.id})" title="Edit">
+                                    <i class='bx bx-edit-alt'></i>
+                                </button>
+                                <button class="btn-quick" style="padding: 6px 12px; font-size: 13px; color: var(--danger);" onclick="app.deleteStudent(${s.id})" title="Delete">
+                                    <i class='bx bx-trash'></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>`;
+        });
+
+        tbody.innerHTML = html.length > 0 ? html : `<tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding:20px;">No students found in directory.</td></tr>`;
+
+        const statTotal = document.getElementById('student-stat-total');
+        if (statTotal) statTotal.textContent = `₹ ${totalMonthlyFees.toLocaleString('en-IN')}`;
+
+        const statPaid = document.getElementById('student-stat-paid');
+        if (statPaid) statPaid.textContent = `₹ ${totalCharged.toLocaleString('en-IN')}`;
+
+        const statPending = document.getElementById('student-stat-pending');
+        if (statPending) statPending.textContent = `₹ ${(totalMonthlyFees - totalCharged).toLocaleString('en-IN')}`;
+    }
+
+    openStudentModal(id = null) {
+        if (this.currentUser !== 'Owner') {
+            this.showAlert('Only the Owner can manage student records.', 'Permission Denied');
+            return;
+        }
+
+        const form = document.getElementById('student-form');
+        if (form) form.reset();
+
+        const title = document.getElementById('student-modal-title');
+        const driveConfirm = document.getElementById('student-drive-confirm');
+        if (driveConfirm) driveConfirm.style.display = 'none';
+
+        if (id) {
+            const s = this.students.find(x => x.id === id);
+            if (s) {
+                if (title) title.textContent = 'Edit Student Record';
+                document.getElementById('stu-id').value = s.id;
+                document.getElementById('stu-name').value = s.name;
+                document.getElementById('stu-course').value = s.course;
+                document.getElementById('stu-phone').value = s.phone;
+                document.getElementById('stu-location').value = s.location || '';
+                document.getElementById('stu-date').value = s.date;
+                document.getElementById('stu-fee').value = s.monthly_fee || 0;
+                document.getElementById('stu-note').value = s.contract || '';
+            }
+        } else {
+            if (title) title.textContent = 'Add New Student';
+            document.getElementById('stu-id').value = '';
+            document.getElementById('stu-date').value = new Date().toISOString().split('T')[0];
+            document.getElementById('stu-fee').value = 0;
+        }
+
+        const modal = document.getElementById('student-modal');
+        if (modal) modal.classList.add('active');
+    }
+
+    closeStudentModal() {
+        const modal = document.getElementById('student-modal');
+        if (modal) modal.classList.remove('active');
+    }
+
+    saveStudent(e) {
+        e.preventDefault();
+        if (this.currentUser !== 'Owner') return;
+
+        const id = document.getElementById('stu-id').value;
+        const studentObj = {
+            id: id ? parseInt(id) : Date.now(),
+            name: document.getElementById('stu-name').value.trim(),
+            course: document.getElementById('stu-course').value,
+            phone: document.getElementById('stu-phone').value.trim(),
+            location: document.getElementById('stu-location').value.trim(),
+            date: document.getElementById('stu-date').value,
+            monthly_fee: parseFloat(document.getElementById('stu-fee').value) || 0,
+            contract: document.getElementById('stu-note').value.trim()
+        };
+
+        if (id) {
+            const index = this.students.findIndex(x => x.id === parseInt(id));
+            if (index !== -1) {
+                this.students[index] = studentObj;
+            }
+        } else {
+            this.students.push(studentObj);
+        }
+
+        this.saveStudentsData();
+        this.renderStudents();
+
+        // Show Drive confirmation inside modal
+        const driveConfirm = document.getElementById('student-drive-confirm');
+        if (driveConfirm) {
+            driveConfirm.style.display = 'block';
+            setTimeout(() => {
+                driveConfirm.style.display = 'none';
+                this.closeStudentModal();
+            }, 2500);
+        } else {
+            this.closeStudentModal();
+        }
+
+        this.showAlert('Student record saved and synced to Google Drive.', '✅ Saved');
+    }
+
+    deleteStudent(id) {
+        if (this.currentUser !== 'Owner') {
+            this.showAlert('Only the Owner can delete student records.', 'Permission Denied');
+            return;
+        }
+        this.showConfirm('Are you sure you want to permanently delete this student record?', () => {
+            this.students = this.students.filter(s => s.id !== id);
+            this.saveStudentsData();
+            this.renderStudents();
+        }, 'Delete Student?');
+    }
+
+    openFeeModal(stuId) {
+        if (this.currentUser !== 'Owner') return;
+        const stu = this.students.find(m => m.id === stuId);
+        if (!stu) return;
+
+        document.getElementById('fee-form').reset();
+        document.getElementById('fee-stu-id').value = stu.id;
+        document.getElementById('fee-stu-name').value = stu.name;
+        document.getElementById('fee-base').value = stu.monthly_fee || 0;
+        document.getElementById('fee-charged').value = stu.chargedFee || 0;
+        document.getElementById('fee-note').value = stu.feeNote || '';
+        document.getElementById('fee-location').value = stu.course || '';
+        const driveConfirm = document.getElementById('drive-fee-confirm');
+        if (driveConfirm) driveConfirm.style.display = 'none';
+        this.calculateFeeRemaining();
+
+        document.getElementById('fee-modal').classList.add('active');
+    }
+
+    closeFeeModal() {
+        document.getElementById('fee-modal').classList.remove('active');
+    }
+
+    calculateFeeRemaining() {
+        const base = parseFloat(document.getElementById('fee-base').value) || 0;
+        const charged = parseFloat(document.getElementById('fee-charged').value) || 0;
+        document.getElementById('fee-remaining').value = (base - charged);
+    }
+
+    saveFee(e) {
+        e.preventDefault();
+        const stuId = parseInt(document.getElementById('fee-stu-id').value);
+        const stu = this.students.find(m => m.id === stuId);
+        if (!stu) return;
+
+        stu.monthly_fee = parseFloat(document.getElementById('fee-base').value) || 0;
+        stu.chargedFee = parseFloat(document.getElementById('fee-charged').value) || 0;
+        stu.feeNote = document.getElementById('fee-note').value;
+        stu.course = (document.getElementById('fee-location').value || '').trim();
+
+        this.saveStudentsData();
+        this.renderStudents();
+
+        const driveConfirm = document.getElementById('drive-fee-confirm');
+        if (driveConfirm) {
+            driveConfirm.style.display = 'block';
+            setTimeout(() => { driveConfirm.style.display = 'none'; }, 4000);
+        }
+
+        this.showAlert(`Fee records for ${stu.name} saved and synced to Google Drive.`, '✅ Saved');
+    }
+
 
     // ==========================================
     // Alerts and Confirms Core Logic
@@ -1964,6 +2502,68 @@ Kindly arrange the remaining payment at your earliest convenience. Thank you for
         localStorage.setItem('artis_crm_theme', theme);
     }
 
+
+    setupSliderDrag() {
+        const slider = document.getElementById('institute-slider');
+        if (!slider) return;
+
+        let isDown = false;
+        let startX;
+        let scrollLeft;
+
+        slider.addEventListener('mousedown', (e) => {
+            isDown = true;
+            slider.style.cursor = 'grabbing';
+            slider.style.scrollSnapType = 'none'; // disable snap while dragging
+            startX = e.pageX - slider.offsetLeft;
+            scrollLeft = slider.scrollLeft;
+        });
+        slider.addEventListener('mouseleave', () => {
+            isDown = false;
+            slider.style.cursor = 'grab';
+            slider.style.scrollSnapType = 'x mandatory';
+        });
+        slider.addEventListener('mouseup', () => {
+            isDown = false;
+            slider.style.cursor = 'grab';
+            slider.style.scrollSnapType = 'x mandatory';
+
+            // Snap to nearest dynamically
+            if (slider.scrollLeft > slider.clientWidth / 2) {
+                this.slideInstitute(1);
+            } else {
+                this.slideInstitute(0);
+            }
+        });
+        slider.addEventListener('mousemove', (e) => {
+            if (!isDown) return;
+            e.preventDefault();
+            const x = e.pageX - slider.offsetLeft;
+            const walk = (x - startX) * 2; // scroll-fast
+            slider.scrollLeft = scrollLeft - walk;
+        });
+
+        // Sync pill on normal scroll
+        slider.addEventListener('scroll', () => {
+            if (isDown) return; // avoid conflict with drag
+            if (slider.scrollLeft > slider.clientWidth / 2) {
+                const pill = document.getElementById('institute-pill');
+                const btnStudents = document.getElementById('toggle-students');
+                const btnEmployees = document.getElementById('toggle-employees');
+                if (pill) pill.style.transform = 'translateX(100%)';
+                if (btnStudents) { btnStudents.style.color = 'var(--text-light)'; btnStudents.classList.remove('active'); }
+                if (btnEmployees) { btnEmployees.style.color = '#fff'; btnEmployees.classList.add('active'); }
+            } else {
+                const pill = document.getElementById('institute-pill');
+                const btnStudents = document.getElementById('toggle-students');
+                const btnEmployees = document.getElementById('toggle-employees');
+                if (pill) pill.style.transform = 'translateX(0)';
+                if (btnStudents) { btnStudents.style.color = '#fff'; btnStudents.classList.add('active'); }
+                if (btnEmployees) { btnEmployees.style.color = 'var(--text-light)'; btnEmployees.classList.remove('active'); }
+            }
+        });
+    }
+
     setupEventListeners() {
         const pForm = document.getElementById('followup-form');
         if (pForm) pForm.addEventListener('submit', (e) => this.saveFollowUp(e));
@@ -1977,20 +2577,310 @@ Kindly arrange the remaining payment at your earliest convenience. Thank you for
         const passForm = document.getElementById('change-pass-form');
         if (passForm) passForm.addEventListener('submit', (e) => this.handleChangePassword(e));
 
+        const stuForm = document.getElementById('student-form');
+        if (stuForm) stuForm.addEventListener('submit', (e) => this.saveStudent(e));
+
+        const salForm = document.getElementById('salary-form');
+        if (salForm) salForm.addEventListener('submit', (e) => this.saveSalary(e));
+
+        const feeForm = document.getElementById('fee-form');
+        if (feeForm) feeForm.addEventListener('submit', (e) => this.saveFee(e));
+
+        // Modal backdrop click 
         window.onclick = function (event) {
-            const fModal = document.getElementById('followup-modal');
+            // Modals and popup forms should NOT close on backdrop click as per user request
+            // User must explicitly save or cancel
+            /*
             const tModal = document.getElementById('team-modal');
             const aModal = document.getElementById('assign-modal');
+            const stuModal = document.getElementById('student-modal');
+            const salModal = document.getElementById('salary-modal');
 
-            if (event.target == fModal) app.closeModal();
             if (event.target == tModal) app.closeTeamModal();
             if (event.target == aModal) app.closeAssignModal();
+            if (event.target == stuModal) app.closeStudentModal();
+            if (event.target == salModal) app.closeSalaryModal();
 
             const alModal = document.getElementById('custom-alert');
-            const cModal = document.getElementById('custom-confirm');
             if (event.target == alModal) app.closeAlert();
+            */
         }
+    }
+
+    togglePasswordVisibility(inputId, btnId) {
+        const input = document.getElementById(inputId);
+        const btn = document.getElementById(btnId);
+        if (!input || !btn) return;
+        if (input.type === 'password') {
+            input.type = 'text';
+            btn.innerHTML = "<i class='bx bx-show'></i>";
+        } else {
+            input.type = 'password';
+            btn.innerHTML = "<i class='bx bx-hide'></i>";
+        }
+    }
+
+    // ==========================================
+    // Google Drive Integration (Professional UX)
+    // ==========================================
+
+    handleGoogleAuthClick() {
+        let clientId = localStorage.getItem('artis_drive_client_id');
+
+        if (!clientId) {
+            this.showDriveConfigModal();
+            return;
+        }
+
+        this.initGoogleAPIAndConnect(clientId);
+    }
+
+    showDriveConfigModal() {
+        const existing = document.getElementById('drive-config-modal');
+        if (existing) {
+            existing.classList.add('active');
+            return;
+        }
+
+        const modalHtml = `
+        <div id="drive-config-modal" class="modal-overlay active">
+            <div class="modal glass animate-pop" style="max-width: 480px; padding: 30px;">
+                <div class="modal-header" style="margin-bottom: 20px;">
+                    <h2 style="font-size: 20px; display:flex; align-items:center; gap:10px; margin: 0;">
+                        <i class='bx bxl-google' style="color: #4285F4; font-size:26px;"></i> Drive Configuration
+                    </h2>
+                    <button class="btn-icon" onclick="document.getElementById('drive-config-modal').classList.remove('active')"><i class='bx bx-x'></i></button>
+                </div>
+                <div style="text-align: left; margin-bottom: 25px;">
+                    <p style="color: var(--text-muted); font-size: 13.5px; line-height: 1.5; margin-bottom:15px;">
+                        To enable seamless cloud backup and synchronization, securely connect your Google Drive APIs. <b>You remain in complete control of your data.</b>
+                    </p>
+                    <p style="color: var(--text-muted); font-size: 12px; line-height: 1.5; padding-left: 10px; border-left: 3px solid var(--primary); margin-bottom: 20px;">
+                        Need one? Go to the <a href="https://console.cloud.google.com/" target="_blank" style="color:var(--primary); text-decoration:none;">Google Cloud Console</a>, create an OAuth 2.0 Web Client ID, and paste it below.
+                    </p>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label style="font-weight: 600; color: #fff;">OAuth 2.0 Client ID</label>
+                        <input type="text" id="drive-client-id-input" placeholder="e.g. 123456...apps.googleusercontent.com" style="width: 100%; border: 1px solid var(--primary); background: rgba(0,0,0,0.3);">
+                    </div>
+                </div>
+                <div class="modal-footer" style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 20px;">
+                    <button class="btn-secondary" onclick="document.getElementById('drive-config-modal').classList.remove('active')">Cancel</button>
+                    <button class="btn-primary" style="background: #4285F4; border: none;" onclick="app.saveDriveConfig()">
+                        Save & Authorize <i class='bx bx-right-arrow-alt'></i>
+                    </button>
+                </div>
+            </div>
+        </div>`;
+
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+    }
+
+    saveDriveConfig() {
+        const input = document.getElementById('drive-client-id-input');
+        const val = input.value.trim();
+        if (!val || val.length < 15) {
+            this.showAlert('Please provide a valid Google Client ID.', 'Invalid Configuration');
+            return;
+        }
+        localStorage.setItem('artis_drive_client_id', val);
+        document.getElementById('drive-config-modal').classList.remove('active');
+
+        this.showAlert('Configuration Saved! Requesting Google Authorization...', 'System Connecting');
+        this.initGoogleAPIAndConnect(val);
+    }
+
+    initGoogleAPIAndConnect(clientId) {
+        this.SCOPES = 'https://www.googleapis.com/auth/drive.file';
+        this.DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
+
+        if (typeof google === 'undefined' || typeof gapi === 'undefined') {
+            this.showAlert('Google API Libraries are currently loading based on your network. Please try clicking Connect again in 5 seconds.', 'Network Wait');
+            return;
+        }
+
+        try {
+            gapi.load('client', async () => {
+                await gapi.client.init({
+                    discoveryDocs: [this.DISCOVERY_DOC],
+                });
+            });
+
+            this.tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: clientId,
+                scope: this.SCOPES,
+                callback: (response) => {
+                    if (response.error !== undefined) {
+                        this.showAlert('Error authenticating with Google Drive. Check your Client ID configuration.\nDetails: ' + response.error, 'Auth Error');
+                        return;
+                    }
+                    this.googleToken = response.access_token;
+                    this.setDriveConnectedUI(true);
+                    this.backupToGoogleDrive();
+                    this.showAlert('Successfully linked with Google Drive SDK! System will now passively auto-sync data.', 'Ecosystem Connected');
+                },
+            });
+
+            this.tokenClient.requestAccessToken({ prompt: 'consent' });
+        } catch (e) {
+            console.error("Google APIs Initialization failed", e);
+            this.showAlert('Failed to initialize Google API engine. Ensure your internet connection is active.', 'Engine Fault');
+        }
+    }
+
+    setDriveConnectedUI(connected) {
+        const btnAuth = document.getElementById('authorize_drive_btn');
+        const btnSync = document.getElementById('sync_drive_btn');
+        const statusText = document.getElementById('drive-status');
+
+        if (!btnAuth || !btnSync || !statusText) return;
+
+        if (connected) {
+            btnAuth.style.display = 'none';
+            btnSync.style.display = 'inline-flex';
+            statusText.innerHTML = 'Status: <span style="color:var(--success)"><i class="bx bx-check-circle"></i> Linked & Auto-Syncing</span><br><a href="#" onclick="app.disconnectDrive()" style="color:var(--danger); font-size:11px; text-decoration:underline; display:inline-block; margin-top:8px; opacity:0.8;">Unlink & Replace Client ID</a>';
+        } else {
+            btnAuth.style.display = 'inline-flex';
+            btnSync.style.display = 'none';
+            statusText.textContent = 'Status: Disconnected';
+            statusText.style.color = 'var(--warning)';
+        }
+    }
+
+    disconnectDrive() {
+        this.showConfirm('Are you sure you want to decouple Google Drive? This will remove your synced connection.', () => {
+            this.googleToken = null;
+            localStorage.removeItem('artis_drive_client_id');
+            localStorage.removeItem('artis_drive_file_id');
+            this.setDriveConnectedUI(false);
+            this.showAlert('Ecosystem successfully detached.', 'Disconnected');
+        }, 'Unlink Google Drive?');
+    }
+
+    async backupToGoogleDrive() {
+        if (!this.googleToken) return false;
+
+        const dataToBackup = {
+            followUps: this.followUps,
+            clients: this.clients,
+            teamMembers: this.teamMembers,
+            students: this.students,
+            reminders: this.paymentReminders,
+            passwords: this.passwords,
+            timestamp: new Date().toISOString()
+        };
+
+        const fileContent = JSON.stringify(dataToBackup, null, 2);
+        const file = new Blob([fileContent], { type: 'application/json' });
+        const metadata = {
+            'name': 'ArtStudio_CRM_LiveBackup.json',
+            'mimeType': 'application/json'
+        };
+
+        const form = new FormData();
+        form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+        form.append('file', file);
+
+        const statusText = document.getElementById('drive-status');
+        if (statusText && statusText.innerHTML.includes('Linked')) {
+            statusText.innerHTML = 'Status: <span style="color:var(--warning)"><i class="bx bx-loader bx-spin"></i> Syncing payload...</span>';
+        }
+
+        try {
+            let fileId = localStorage.getItem('artis_drive_file_id');
+            let method = 'POST';
+            let url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+
+            if (fileId) {
+                const checkRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+                    headers: { 'Authorization': 'Bearer ' + this.googleToken }
+                });
+                if (checkRes.ok) {
+                    method = 'PATCH';
+                    url = `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`;
+                } else {
+                    localStorage.removeItem('artis_drive_file_id');
+                    fileId = null;
+                }
+            }
+
+            const response = await fetch(url, {
+                method: method,
+                headers: new Headers({ 'Authorization': 'Bearer ' + this.googleToken }),
+                body: form
+            });
+
+            if (response.ok) {
+                const resData = await response.json();
+                if (!fileId && resData.id) localStorage.setItem('artis_drive_file_id', resData.id);
+
+                if (statusText) {
+                    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    statusText.innerHTML = `Status: <span style="color:var(--success)"><i class="bx bx-check-shield"></i> Clean Sync (${time})</span><br><a href="#" onclick="app.disconnectDrive()" style="color:var(--danger); font-size:11px; text-decoration:underline; display:inline-block; margin-top:8px; opacity:0.8;">Unlink & Replace Client ID</a>`;
+                }
+                return true;
+            } else {
+                if (statusText) statusText.innerHTML = 'Status: <span style="color:var(--danger)">HTTP Upload Refusal</span>';
+                return false;
+            }
+        } catch (e) {
+            console.error("Error during Drive Sync", e);
+            if (statusText) statusText.innerHTML = 'Status: <span style="color:var(--danger)">Network Integrity Fault</span>';
+            return false;
+        }
+    }
+
+    autoSyncToDrive() {
+        if (this.googleToken) {
+            this.backupToGoogleDrive();
+        }
+    }
+
+    closeStudentDetail() {
+        const modal = document.getElementById('student-detail-modal');
+        if (modal) modal.classList.remove('active');
+    }
+
+    openStudentDetail(id) {
+        const s = this.students.find(x => x.id === id);
+        if (!s) return;
+        const header = document.getElementById('sd-header-info');
+        if (header) {
+            const fee = parseFloat(s.monthly_fee) || 0;
+            const chargedFee = parseFloat(s.chargedFee) || 0;
+            header.innerHTML = `
+                <h3 style="margin:0; font-size:18px;">${s.name}</h3>
+                <p style="color:var(--text-muted); font-size:13px;"><i class='bx bx-phone'></i> ${s.phone || '-'} &nbsp; <i class='bx bx-map'></i> ${s.location || '-'}</p>
+                <p style="color:var(--primary); font-size:13px; font-weight:600;">Course: ${s.course} &nbsp; Fee: ₹${fee.toLocaleString('en-IN')} &nbsp; Charged: ₹${chargedFee.toLocaleString('en-IN')}</p>
+                <p style="color:var(--text-muted); font-size:12px;">${s.feeNote || 'No fee note'}</p>
+            `;
+        }
+        const modal = document.getElementById('student-detail-modal');
+        if (modal) modal.classList.add('active');
+    }
+
+    closeEmployeeDetail() {
+        const modal = document.getElementById('employee-detail-modal');
+        if (modal) modal.classList.remove('active');
+    }
+
+    openEmployeeDetail(id) {
+        const emp = this.teamMembers.find(m => m.id === id);
+        if (!emp) return;
+        const header = document.getElementById('ed-header-info');
+        if (header) {
+            const baseSalary = parseFloat(emp.baseSalary) || 0;
+            const paidSalary = parseFloat(emp.paidSalary) || 0;
+            header.innerHTML = `
+                <h3 style="margin:0; font-size:18px;">${emp.name}</h3>
+                <p style="color:var(--text-muted); font-size:13px;"><i class='bx bx-phone'></i> ${emp.phone || '-'} &nbsp; <i class='bx bx-map'></i> ${emp.location || '-'}</p>
+                <p style="color:var(--primary); font-size:13px; font-weight:600;">Role: ${emp.role} &nbsp; Base: ₹${baseSalary.toLocaleString('en-IN')} &nbsp; Paid: ₹${paidSalary.toLocaleString('en-IN')}</p>
+                <p style="color:var(--text-muted); font-size:12px;">${emp.salaryNote || 'No payment note'}</p>
+            `;
+        }
+        const modal = document.getElementById('employee-detail-modal');
+        if (modal) modal.classList.add('active');
     }
 }
 
 window.app = new ArtStudioCRM();
+
