@@ -465,23 +465,14 @@
                                 </select>
                             </div>
                         </div>
-                        <h3 style="margin: 30px 0 20px; color: var(--primary);">Backup Ecosystem ☁️</h3>
+                        <h3 style="margin: 30px 0 20px; color: var(--primary);">Backup System 💾</h3>
                         <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
-                            <p style="color: var(--text-muted); font-size: 13px;">Connect Google Drive to safely export
-                                and auto-sync records.</p>
-                            <button id="authorize_drive_btn" class="btn-primary"
-                                style="background: #4285F4; border: none; width: fit-content;"
-                                onclick="app.handleGoogleAuthClick()">
-                                <i class='bx bxl-google'></i> Connect Google Drive
+                            <p style="color: var(--text-muted); font-size: 13px;">Download a complete backup of all system records in CSV format.</p>
+                            <button class="btn-primary"
+                                style="background: var(--success); border: none; width: fit-content;"
+                                onclick="app.downloadBackupCSV()">
+                                <i class='bx bx-download'></i> Download Records (CSV)
                             </button>
-                            <button id="sync_drive_btn" class="btn-secondary"
-                                style="display: none; border: 1px solid var(--success); color: var(--success); width: fit-content;"
-                                onclick="app.backupToGoogleDrive()">
-                                <i class='bx bx-cloud-upload'></i> Force Backup Now
-                            </button>
-                            <div id="drive-status"
-                                style="font-size: 12px; font-weight: 500; margin-top: 5px; color: var(--warning);">
-                                Status: Disconnected</div>
                         </div>
                         <h3 style="margin: 30px 0 20px; color: var(--primary);">Theme</h3>
                         <div style="display: flex; gap: 15px; margin-bottom: 20px;">
@@ -773,9 +764,7 @@
                     <label>Internal Note / Contract</label>
                     <textarea id="stu-note" rows="2" placeholder="Any specific terms..."></textarea>
                 </div>
-                <div id="student-drive-confirm" style="display:none; color:var(--success); font-size:12px; margin-bottom:10px;">
-                    <i class='bx bx-cloud-upload'></i> Syncing with Google Drive...
-                </div>
+
                 <div class="modal-footer">
                     <button type="button" class="btn-secondary" onclick="app.closeStudentModal()">Cancel</button>
                     <button type="submit" class="btn-primary">Save Student</button>
@@ -816,9 +805,7 @@
                     <input type="text" id="fee-note" placeholder="e.g. Cash / GPay - April">
                 </div>
                 <input type="hidden" id="fee-location">
-                <div id="drive-fee-confirm" style="display:none; color:var(--success); font-size:12px; margin-bottom:10px;">
-                    <i class='bx bx-cloud-upload'></i> Syncing fee record...
-                </div>
+
                 <div class="modal-footer">
                     <button type="button" class="btn-secondary" onclick="app.closeFeeModal()">Cancel</button>
                     <button type="submit" class="btn-primary">Receive ₹ Fee</button>
