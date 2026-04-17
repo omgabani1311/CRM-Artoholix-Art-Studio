@@ -426,33 +426,7 @@ class ArtStudioCRM {
         if (stored) {
             this.followUps = JSON.parse(stored);
         } else {
-            const d1 = new Date(); d1.setDate(d1.getDate() + 1);
-            const d2 = new Date(); d2.setDate(d2.getDate() + 3);
-            const d3 = new Date(); d3.setDate(d3.getDate() + 5);
-
-            this.followUps = [
-                {
-                    id: 1, client: 'Emma Watson', contact: '+91 9988776655', location: 'Mumbai', style: 'Portrait', size: '24x36',
-                    desc: 'Custom Portrait 24x36 - Discuss color palette', total: 15000, advance: 5000, remaining: 10000,
-                    date: d1.toISOString().split('T')[0], status: 'Pending', stage: 'Sketching', stagenote: 'Awaiting client approval',
-                    payments: [{ amount: 5000, date: d1.toISOString().split('T')[0], note: 'Initial advance' }],
-                    assign: 'Manager'
-                },
-                {
-                    id: 2, client: 'John Smith', contact: '+91 8877665544', location: 'Delhi', style: 'Abstract Canvas', size: '48x48',
-                    desc: 'Abstract Canvas Delivery', total: 30000, advance: 30000, remaining: 0,
-                    date: d2.toISOString().split('T')[0], status: 'In Progress', stage: 'Framing', stagenote: 'Final wood frame requested',
-                    payments: [{ amount: 30000, date: d2.toISOString().split('T')[0], note: 'Full advance' }],
-                    assign: 'Team'
-                },
-                {
-                    id: 3, client: 'Sophia Patel', contact: '+91 7766554433', location: 'Pune', style: 'Mural Design', size: 'N/A',
-                    desc: 'Review sketches for mural', total: 45000, advance: 10000, remaining: 35000,
-                    date: d3.toISOString().split('T')[0], status: 'Pending', stage: 'Consultation', stagenote: 'Sent 3 drafts',
-                    payments: [{ amount: 10000, date: d3.toISOString().split('T')[0], note: 'Advance' }],
-                    assign: 'Team: Rahul Kumar'
-                }
-            ];
+            this.followUps = [];
             this.saveData();
         }
 
@@ -478,10 +452,7 @@ class ArtStudioCRM {
         if (storedTeam) {
             this.teamMembers = JSON.parse(storedTeam);
         } else {
-            this.teamMembers = [
-                { id: 101, name: 'Amit Sharma', role: 'Manager', phone: '+91 9876543210' },
-                { id: 102, name: 'Rahul Kumar', role: 'Team', phone: '+91 8765432109' }
-            ];
+            this.teamMembers = [];
             this.saveTeamData();
         }
 
@@ -507,12 +478,10 @@ class ArtStudioCRM {
     }
 
     saveClientsData() {
-        this.autoSyncToDrive();
         localStorage.setItem('artis_crm_clients', JSON.stringify(this.clients));
     }
 
     saveTeamData() {
-        this.autoSyncToDrive();
         localStorage.setItem('artis_crm_team', JSON.stringify(this.teamMembers));
     }
 
@@ -541,6 +510,43 @@ class ArtStudioCRM {
         this.currentUser = null;
         sessionStorage.removeItem('artis_crm_role');
         window.location.reload();
+    }
+
+    downloadBackupCSV() {
+        let csvContent = "";
+        
+        // FollowUps (Clients/Projects)
+        csvContent += "=== CLIENTS / PROJECTS ===\n";
+        csvContent += "ID,Client,Contact,Location,Style,Size,Total,Advance,Remaining,Status,Stage,Date,Assign\n";
+        this.followUps.forEach(f => {
+            csvContent += `${f.id},"${f.client || ''}","${f.contact || ''}","${f.location || ''}","${f.style || ''}","${f.size || ''}",${f.total || 0},${f.advance || 0},${f.remaining || 0},"${f.status || ''}","${f.stage || ''}","${f.date || ''}","${f.assign || ''}"\n`;
+        });
+        
+        // Students
+        csvContent += "\n=== STUDENTS ===\n";
+        csvContent += "ID,Name,Phone,Course,Location,Admission Date,Monthly Fee,Charged Fee,Contract/Note\n";
+        this.students.forEach(s => {
+            csvContent += `${s.id},"${s.name || ''}","${s.phone || ''}","${s.course || ''}","${s.location || ''}","${s.date || ''}",${s.monthly_fee || 0},${s.chargedFee || 0},"${s.contract || ''}"\n`;
+        });
+
+        // Team Members
+        csvContent += "\n=== EMPLOYEES / TEAM ===\n";
+        csvContent += "ID,Name,Role,Phone,Base Salary,Paid Salary,Remaining,Note\n";
+        this.teamMembers.forEach(m => {
+            const base = m.baseSalary || 0;
+            const paid = m.paidSalary || 0;
+            csvContent += `${m.id},"${m.name || ''}","${m.role || ''}","${m.phone || ''}",${base},${paid},${base - paid},"${m.salaryNote || ''}"\n`;
+        });
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', `ArtStudio_CRM_Backup_${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     }
 
     showLogin() {
@@ -2079,10 +2085,6 @@ Kindly arrange the remaining payment at your earliest convenience. Thank you for
         document.getElementById('sal-base').value = emp.baseSalary || 0;
         document.getElementById('sal-paid').value = emp.paidSalary || 0;
         document.getElementById('sal-note').value = emp.salaryNote || '';
-        document.getElementById('sal-location').value = emp.location || '';
-        // Hide any leftover confirmation from last open
-        const driveConfirm = document.getElementById('drive-save-confirm');
-        if (driveConfirm) driveConfirm.style.display = 'none';
         this.calculateSalaryRemaining();
 
         document.getElementById('salary-modal').classList.add('active');
@@ -2107,19 +2109,11 @@ Kindly arrange the remaining payment at your earliest convenience. Thank you for
         emp.baseSalary = parseFloat(document.getElementById('sal-base').value) || 0;
         emp.paidSalary = parseFloat(document.getElementById('sal-paid').value) || 0;
         emp.salaryNote = document.getElementById('sal-note').value;
-        emp.location = (document.getElementById('sal-location').value || '').trim();
 
         this.saveTeamData();
         this.renderEmployees();
 
-        // Show Google Drive confirmation banner inside modal
-        const driveConfirm = document.getElementById('drive-save-confirm');
-        if (driveConfirm) {
-            driveConfirm.style.display = 'block';
-            setTimeout(() => { driveConfirm.style.display = 'none'; }, 4000);
-        }
-
-        this.showAlert(`Salary records for ${emp.name} saved and synced to Google Drive.`, '✅ Saved');
+        this.showAlert(`Salary records for ${emp.name} saved.`, '✅ Saved');
     }
 
     sendSalaryReminder(phone, name, remaining) {
@@ -2143,7 +2137,6 @@ Kindly arrange the remaining payment at your earliest convenience. Thank you for
     // ==========================================
     saveStudentsData() {
         localStorage.setItem('artis_crm_students', JSON.stringify(this.students));
-        this.autoSyncToDrive();
     }
 
     renderStudents() {
@@ -2210,8 +2203,6 @@ Kindly arrange the remaining payment at your earliest convenience. Thank you for
         if (form) form.reset();
 
         const title = document.getElementById('student-modal-title');
-        const driveConfirm = document.getElementById('student-drive-confirm');
-        if (driveConfirm) driveConfirm.style.display = 'none';
 
         if (id) {
             const s = this.students.find(x => x.id === id);
@@ -2269,20 +2260,9 @@ Kindly arrange the remaining payment at your earliest convenience. Thank you for
 
         this.saveStudentsData();
         this.renderStudents();
-
-        // Show Drive confirmation inside modal
-        const driveConfirm = document.getElementById('student-drive-confirm');
-        if (driveConfirm) {
-            driveConfirm.style.display = 'block';
-            setTimeout(() => {
-                driveConfirm.style.display = 'none';
-                this.closeStudentModal();
-            }, 2500);
-        } else {
-            this.closeStudentModal();
-        }
-
-        this.showAlert('Student record saved and synced to Google Drive.', '✅ Saved');
+        
+        this.closeStudentModal();
+        this.showAlert('Student record saved.', '✅ Saved');
     }
 
     deleteStudent(id) {
@@ -2309,8 +2289,6 @@ Kindly arrange the remaining payment at your earliest convenience. Thank you for
         document.getElementById('fee-charged').value = stu.chargedFee || 0;
         document.getElementById('fee-note').value = stu.feeNote || '';
         document.getElementById('fee-location').value = stu.course || '';
-        const driveConfirm = document.getElementById('drive-fee-confirm');
-        if (driveConfirm) driveConfirm.style.display = 'none';
         this.calculateFeeRemaining();
 
         document.getElementById('fee-modal').classList.add('active');
@@ -2340,13 +2318,7 @@ Kindly arrange the remaining payment at your earliest convenience. Thank you for
         this.saveStudentsData();
         this.renderStudents();
 
-        const driveConfirm = document.getElementById('drive-fee-confirm');
-        if (driveConfirm) {
-            driveConfirm.style.display = 'block';
-            setTimeout(() => { driveConfirm.style.display = 'none'; }, 4000);
-        }
-
-        this.showAlert(`Fee records for ${stu.name} saved and synced to Google Drive.`, '✅ Saved');
+        this.showAlert(`Fee records for ${stu.name} saved.`, '✅ Saved');
     }
 
 
@@ -2617,221 +2589,6 @@ Kindly arrange the remaining payment at your earliest convenience. Thank you for
         } else {
             input.type = 'password';
             btn.innerHTML = "<i class='bx bx-hide'></i>";
-        }
-    }
-
-    // ==========================================
-    // Google Drive Integration (Professional UX)
-    // ==========================================
-
-    handleGoogleAuthClick() {
-        let clientId = localStorage.getItem('artis_drive_client_id');
-
-        if (!clientId) {
-            this.showDriveConfigModal();
-            return;
-        }
-
-        this.initGoogleAPIAndConnect(clientId);
-    }
-
-    showDriveConfigModal() {
-        const existing = document.getElementById('drive-config-modal');
-        if (existing) {
-            existing.classList.add('active');
-            return;
-        }
-
-        const modalHtml = `
-        <div id="drive-config-modal" class="modal-overlay active">
-            <div class="modal glass animate-pop" style="max-width: 480px; padding: 30px;">
-                <div class="modal-header" style="margin-bottom: 20px;">
-                    <h2 style="font-size: 20px; display:flex; align-items:center; gap:10px; margin: 0;">
-                        <i class='bx bxl-google' style="color: #4285F4; font-size:26px;"></i> Drive Configuration
-                    </h2>
-                    <button class="btn-icon" onclick="document.getElementById('drive-config-modal').classList.remove('active')"><i class='bx bx-x'></i></button>
-                </div>
-                <div style="text-align: left; margin-bottom: 25px;">
-                    <p style="color: var(--text-muted); font-size: 13.5px; line-height: 1.5; margin-bottom:15px;">
-                        To enable seamless cloud backup and synchronization, securely connect your Google Drive APIs. <b>You remain in complete control of your data.</b>
-                    </p>
-                    <p style="color: var(--text-muted); font-size: 12px; line-height: 1.5; padding-left: 10px; border-left: 3px solid var(--primary); margin-bottom: 20px;">
-                        Need one? Go to the <a href="https://console.cloud.google.com/" target="_blank" style="color:var(--primary); text-decoration:none;">Google Cloud Console</a>, create an OAuth 2.0 Web Client ID, and paste it below.
-                    </p>
-                    <div class="form-group" style="margin-bottom: 0;">
-                        <label style="font-weight: 600; color: #fff;">OAuth 2.0 Client ID</label>
-                        <input type="text" id="drive-client-id-input" placeholder="e.g. 123456...apps.googleusercontent.com" style="width: 100%; border: 1px solid var(--primary); background: rgba(0,0,0,0.3);">
-                    </div>
-                </div>
-                <div class="modal-footer" style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 20px;">
-                    <button class="btn-secondary" onclick="document.getElementById('drive-config-modal').classList.remove('active')">Cancel</button>
-                    <button class="btn-primary" style="background: #4285F4; border: none;" onclick="app.saveDriveConfig()">
-                        Save & Authorize <i class='bx bx-right-arrow-alt'></i>
-                    </button>
-                </div>
-            </div>
-        </div>`;
-
-        document.body.insertAdjacentHTML('beforeend', modalHtml);
-    }
-
-    saveDriveConfig() {
-        const input = document.getElementById('drive-client-id-input');
-        const val = input.value.trim();
-        if (!val || val.length < 15) {
-            this.showAlert('Please provide a valid Google Client ID.', 'Invalid Configuration');
-            return;
-        }
-        localStorage.setItem('artis_drive_client_id', val);
-        document.getElementById('drive-config-modal').classList.remove('active');
-
-        this.showAlert('Configuration Saved! Requesting Google Authorization...', 'System Connecting');
-        this.initGoogleAPIAndConnect(val);
-    }
-
-    initGoogleAPIAndConnect(clientId) {
-        this.SCOPES = 'https://www.googleapis.com/auth/drive.file';
-        this.DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
-
-        if (typeof google === 'undefined' || typeof gapi === 'undefined') {
-            this.showAlert('Google API Libraries are currently loading based on your network. Please try clicking Connect again in 5 seconds.', 'Network Wait');
-            return;
-        }
-
-        try {
-            gapi.load('client', async () => {
-                await gapi.client.init({
-                    discoveryDocs: [this.DISCOVERY_DOC],
-                });
-            });
-
-            this.tokenClient = google.accounts.oauth2.initTokenClient({
-                client_id: clientId,
-                scope: this.SCOPES,
-                callback: (response) => {
-                    if (response.error !== undefined) {
-                        this.showAlert('Error authenticating with Google Drive. Check your Client ID configuration.\nDetails: ' + response.error, 'Auth Error');
-                        return;
-                    }
-                    this.googleToken = response.access_token;
-                    this.setDriveConnectedUI(true);
-                    this.backupToGoogleDrive();
-                    this.showAlert('Successfully linked with Google Drive SDK! System will now passively auto-sync data.', 'Ecosystem Connected');
-                },
-            });
-
-            this.tokenClient.requestAccessToken({ prompt: 'consent' });
-        } catch (e) {
-            console.error("Google APIs Initialization failed", e);
-            this.showAlert('Failed to initialize Google API engine. Ensure your internet connection is active.', 'Engine Fault');
-        }
-    }
-
-    setDriveConnectedUI(connected) {
-        const btnAuth = document.getElementById('authorize_drive_btn');
-        const btnSync = document.getElementById('sync_drive_btn');
-        const statusText = document.getElementById('drive-status');
-
-        if (!btnAuth || !btnSync || !statusText) return;
-
-        if (connected) {
-            btnAuth.style.display = 'none';
-            btnSync.style.display = 'inline-flex';
-            statusText.innerHTML = 'Status: <span style="color:var(--success)"><i class="bx bx-check-circle"></i> Linked & Auto-Syncing</span><br><a href="#" onclick="app.disconnectDrive()" style="color:var(--danger); font-size:11px; text-decoration:underline; display:inline-block; margin-top:8px; opacity:0.8;">Unlink & Replace Client ID</a>';
-        } else {
-            btnAuth.style.display = 'inline-flex';
-            btnSync.style.display = 'none';
-            statusText.textContent = 'Status: Disconnected';
-            statusText.style.color = 'var(--warning)';
-        }
-    }
-
-    disconnectDrive() {
-        this.showConfirm('Are you sure you want to decouple Google Drive? This will remove your synced connection.', () => {
-            this.googleToken = null;
-            localStorage.removeItem('artis_drive_client_id');
-            localStorage.removeItem('artis_drive_file_id');
-            this.setDriveConnectedUI(false);
-            this.showAlert('Ecosystem successfully detached.', 'Disconnected');
-        }, 'Unlink Google Drive?');
-    }
-
-    async backupToGoogleDrive() {
-        if (!this.googleToken) return false;
-
-        const dataToBackup = {
-            followUps: this.followUps,
-            clients: this.clients,
-            teamMembers: this.teamMembers,
-            students: this.students,
-            reminders: this.paymentReminders,
-            passwords: this.passwords,
-            timestamp: new Date().toISOString()
-        };
-
-        const fileContent = JSON.stringify(dataToBackup, null, 2);
-        const file = new Blob([fileContent], { type: 'application/json' });
-        const metadata = {
-            'name': 'ArtStudio_CRM_LiveBackup.json',
-            'mimeType': 'application/json'
-        };
-
-        const form = new FormData();
-        form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-        form.append('file', file);
-
-        const statusText = document.getElementById('drive-status');
-        if (statusText && statusText.innerHTML.includes('Linked')) {
-            statusText.innerHTML = 'Status: <span style="color:var(--warning)"><i class="bx bx-loader bx-spin"></i> Syncing payload...</span>';
-        }
-
-        try {
-            let fileId = localStorage.getItem('artis_drive_file_id');
-            let method = 'POST';
-            let url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
-
-            if (fileId) {
-                const checkRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
-                    headers: { 'Authorization': 'Bearer ' + this.googleToken }
-                });
-                if (checkRes.ok) {
-                    method = 'PATCH';
-                    url = `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`;
-                } else {
-                    localStorage.removeItem('artis_drive_file_id');
-                    fileId = null;
-                }
-            }
-
-            const response = await fetch(url, {
-                method: method,
-                headers: new Headers({ 'Authorization': 'Bearer ' + this.googleToken }),
-                body: form
-            });
-
-            if (response.ok) {
-                const resData = await response.json();
-                if (!fileId && resData.id) localStorage.setItem('artis_drive_file_id', resData.id);
-
-                if (statusText) {
-                    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                    statusText.innerHTML = `Status: <span style="color:var(--success)"><i class="bx bx-check-shield"></i> Clean Sync (${time})</span><br><a href="#" onclick="app.disconnectDrive()" style="color:var(--danger); font-size:11px; text-decoration:underline; display:inline-block; margin-top:8px; opacity:0.8;">Unlink & Replace Client ID</a>`;
-                }
-                return true;
-            } else {
-                if (statusText) statusText.innerHTML = 'Status: <span style="color:var(--danger)">HTTP Upload Refusal</span>';
-                return false;
-            }
-        } catch (e) {
-            console.error("Error during Drive Sync", e);
-            if (statusText) statusText.innerHTML = 'Status: <span style="color:var(--danger)">Network Integrity Fault</span>';
-            return false;
-        }
-    }
-
-    autoSyncToDrive() {
-        if (this.googleToken) {
-            this.backupToGoogleDrive();
         }
     }
 
