@@ -871,35 +871,41 @@ option {
     .roles-grid {
         grid-template-columns: repeat(2, 1fr);
     }
+
     .stats-grid {
         grid-template-columns: repeat(2, 1fr);
     }
+
     .search-bar {
         width: 220px;
     }
+
     .sidebar {
         width: 220px;
     }
+
     .main-content {
         margin-left: 220px;
     }
 }
 
 @media (max-width: 768px) {
+
     /* Base Layout Padding */
     body {
         padding-bottom: 70px;
     }
-    
+
     /* Login View adjustments */
     .roles-grid {
         grid-template-columns: 1fr;
     }
+
     .login-container {
         padding: 30px 20px;
         max-width: 90%;
     }
-    
+
     /* Transform Sidebar into Sticky Bottom Navigation */
     .sidebar.glass {
         width: 100%;
@@ -921,14 +927,17 @@ option {
         display: flex;
         align-items: center;
         justify-content: space-around;
-        box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
+        box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
     }
+
     body.light-theme .sidebar.glass {
         background: rgba(255, 255, 255, 0.95);
     }
+
     .sidebar-header {
         display: none;
     }
+
     .nav-links {
         display: flex;
         flex-direction: row;
@@ -938,12 +947,14 @@ option {
         justify-content: space-around;
         align-items: stretch;
     }
+
     .nav-links li {
         margin: 0;
         flex: 1;
         text-align: center;
         display: flex;
     }
+
     .nav-links a {
         flex: 1;
         display: flex;
@@ -956,24 +967,26 @@ option {
         justify-content: center;
         align-items: center;
     }
+
     .nav-links li:hover a,
     .nav-links li.active a {
         border-left-color: transparent;
         border-bottom-color: var(--primary);
         background: rgba(212, 175, 55, 0.05);
     }
+
     .nav-links a i {
         margin-right: 0;
         margin-bottom: 2px;
     }
-    
+
     /* Main Wrapper Config */
     .main-content {
         margin-left: 0;
         width: 100%;
         min-height: calc(100vh - 65px);
     }
-    
+
     /* Flexible Topbar that wraps elements organically */
     .topbar {
         height: auto;
@@ -984,42 +997,47 @@ option {
         gap: 15px;
         justify-content: center;
     }
-    .topbar > div:nth-child(1) {
+
+    .topbar>div:nth-child(1) {
         align-items: flex-start;
         text-align: left;
         width: 100%;
     }
-    .topbar > div:nth-child(2) {
+
+    .topbar>div:nth-child(2) {
         flex-wrap: wrap;
         justify-content: space-between;
         gap: 15px;
         width: 100%;
     }
+
     .search-bar {
         width: 100%;
         order: 3;
         margin-top: 5px;
     }
+
     .user-info {
         justify-content: flex-end;
         width: 100%;
         order: 1;
     }
-    
+
     /* Safe spacing to scroll past Bottom Nav */
     .content-body {
         padding: 15px;
         padding-bottom: 80px;
     }
-    
+
     /* Stacking Grids */
     .stats-grid {
         grid-template-columns: 1fr;
     }
+
     #page-analytics .stats-grid {
         grid-template-columns: 1fr;
     }
-    
+
     /* Fix layout of section header tools depending on buttons vs titles */
     .dashboard-header.split {
         flex-direction: column !important;
@@ -1027,30 +1045,36 @@ option {
         gap: 15px;
         text-align: left;
     }
-    .dashboard-header.split > div, 
-    .dashboard-header.split > button {
+
+    .dashboard-header.split>div,
+    .dashboard-header.split>button {
         width: 100% !important;
     }
-    .dashboard-header.split > button {
+
+    .dashboard-header.split>button {
         justify-content: center;
     }
+
     /* Custom align specific to the double header in Follow Ups tab */
-    .dashboard-header.split > div:nth-child(2) {
+    .dashboard-header.split>div:nth-child(2) {
         flex-direction: column !important;
         align-items: stretch !important;
         gap: 15px !important;
     }
-    .dashboard-header.split > div:nth-child(2) > div[style*="padding: 4px"] {
+
+    .dashboard-header.split>div:nth-child(2)>div[style*="padding: 4px"] {
         display: flex !important;
         flex-direction: row !important;
         width: 100% !important;
         box-sizing: border-box;
     }
-    .dashboard-header.split > div:nth-child(2) > div > button {
+
+    .dashboard-header.split>div:nth-child(2)>div>button {
         flex: 1;
         justify-content: center;
     }
-    .dashboard-header.split > div:nth-child(2) > button {
+
+    .dashboard-header.split>div:nth-child(2)>button {
         width: 100% !important;
         justify-content: center !important;
     }
@@ -1061,6 +1085,7 @@ option {
         align-items: flex-start;
         gap: 15px;
     }
+
     .f-actions {
         width: 100%;
         flex-direction: row;
@@ -1072,48 +1097,56 @@ option {
         margin-top: 5px;
         flex-wrap: wrap;
     }
+
     body.light-theme .f-actions {
         border-top: 1px solid rgba(0, 0, 0, 0.05);
     }
-    
+
     /* Modularized generic forms and settings grids */
     .form-grid {
         grid-template-columns: 1fr !important;
     }
+
     .form-row {
         flex-direction: column;
         gap: 20px;
     }
+
     .modal {
         padding: 20px;
         max-width: 95%;
     }
+
     #followup-modal .modal {
         width: 95vw;
         height: auto;
         max-height: 85vh;
         padding: 20px 15px;
     }
+
     .modal-footer {
         flex-direction: column;
         gap: 12px;
     }
+
     .modal-footer button {
         width: 100%;
         justify-content: center;
     }
-    
+
     /* Stacking setting cards */
     #page-settings .glass {
         min-width: 100% !important;
         margin-bottom: 20px;
     }
-    #page-settings > div[style*="display: flex"] {
-        flex-direction: column !important; 
+
+    #page-settings>div[style*="display: flex"] {
+        flex-direction: column !important;
     }
 }
 
 @media (max-width: 480px) {
+
     /* Extra tiny screens formatting reductions */
     .f-meta {
         width: 100%;
@@ -1122,24 +1155,31 @@ option {
         justify-content: space-between;
         gap: 10px;
     }
+
     .f-title {
         font-size: 15px;
     }
+
     .f-desc {
         font-size: 13px;
     }
+
     .f-actions {
         flex-wrap: wrap;
     }
+
     .roles-grid {
         gap: 12px;
     }
+
     .role-card {
         padding: 15px;
     }
+
     .stat-card {
         padding: 15px;
     }
+
     .stat-icon {
         width: 50px;
         height: 50px;
