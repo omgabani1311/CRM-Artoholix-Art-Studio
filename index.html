@@ -450,18 +450,18 @@
                         <h3 style="margin-bottom: 15px; color: var(--primary);">Profile Settings</h3>
                         <div class="form-group">
                             <label>Studio Name</label>
-                            <input type="text" value="Artis Studio Co.">
+                            <input type="text" id="conf-studio-name" value="Artis Studio Co.">
                         </div>
                         <div class="form-row">
                             <div class="form-group">
                                 <label>Notification Email</label>
-                                <input type="email" value="admin@artis.com">
+                                <input type="email" id="conf-studio-email" value="admin@artis.com">
                             </div>
                             <div class="form-group">
                                 <label>Currency</label>
-                                <select>
-                                    <option>INR (₹)</option>
-                                    <option>USD ($)</option>
+                                <select id="conf-studio-currency">
+                                    <option value="INR">INR (₹)</option>
+                                    <option value="USD">USD ($)</option>
                                 </select>
                             </div>
                         </div>
@@ -652,10 +652,14 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Phone Number</label>
-                        <br>
-                        <input type="tel" id="t-phone" required placeholder="9876543210" style="width: 100%;">
+                        <label>City/Location</label>
+                        <input type="text" id="t-location" placeholder="e.g. Surat">
                     </div>
+                </div>
+                <div class="form-group">
+                    <label>Phone Number</label>
+                    <br>
+                    <input type="tel" id="t-phone" required placeholder="9876543210" style="width: 100%;">
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn-secondary" onclick="app.closeTeamModal()">Cancel</button>
