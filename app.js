@@ -412,25 +412,26 @@ class ArtStudioCRM {
     }
 
     loadData() {
-        const storedClients = localStorage.getItem('artis_crm_clients');
-        if (storedClients) {
-            this.clients = JSON.parse(storedClients);
-        } else {
-            this.clients = [];
+        const CURRENT_VERSION = '1.0.0';
+        const isInitialized = localStorage.getItem('crm_initialized');
+        const currentVersion = localStorage.getItem('crm_version');
+
+        // First-Time Load Reset Logic & Version-Based Reset
+        if (!isInitialized || currentVersion !== CURRENT_VERSION) {
+            localStorage.clear();
+            localStorage.setItem('crm_initialized', 'true');
+            localStorage.setItem('crm_version', CURRENT_VERSION);
         }
 
-        const storedReminders = localStorage.getItem('artis_crm_reminders');
-        this.paymentReminders = storedReminders ? JSON.parse(storedReminders) : [];
+        // Load from localStorage if available, otherwise initialize as empty array
+        this.clients = JSON.parse(localStorage.getItem('artis_crm_clients')) || [];
+        this.paymentReminders = JSON.parse(localStorage.getItem('artis_crm_reminders')) || [];
+        this.followUps = JSON.parse(localStorage.getItem('artis_crm_data')) || [];
+        this.teamMembers = JSON.parse(localStorage.getItem('artis_crm_team')) || [];
+        this.students = JSON.parse(localStorage.getItem('artis_crm_students')) || [];
 
-        const stored = localStorage.getItem('artis_crm_data');
-        if (stored) {
-            this.followUps = JSON.parse(stored);
-        } else {
-            this.followUps = [];
-            this.saveData();
-        }
-
-        if (!storedClients && this.followUps.length > 0) {
+        // Legacy auto-population for clients based on followUps (if imported)
+        if (this.clients.length === 0 && this.followUps.length > 0) {
             let cMap = {};
             this.followUps.forEach(f => {
                 if (!f.client) return;
@@ -448,28 +449,12 @@ class ArtStudioCRM {
             this.saveClientsData();
         }
 
-        const storedTeam = localStorage.getItem('artis_crm_team');
-        if (storedTeam) {
-            this.teamMembers = JSON.parse(storedTeam);
-        } else {
-            this.teamMembers = [];
-            this.saveTeamData();
+        // Default Passwords Setup
+        if (!localStorage.getItem("owner_password")) {
+            localStorage.setItem("owner_password", "Owner@123");
         }
-
-        const storedStudents = localStorage.getItem('artis_crm_students');
-        if (storedStudents) {
-            this.students = JSON.parse(storedStudents);
-        } else {
-            this.students = [];
-            this.saveStudentsData();
-        }
-
-        const storedPass = localStorage.getItem('artis_crm_passwords');
-        if (storedPass) {
-            this.passwords = JSON.parse(storedPass);
-        } else {
-            this.passwords = { Owner: 'Owner@123', Manager: 'Manager@123' };
-            localStorage.setItem('artis_crm_passwords', JSON.stringify(this.passwords));
+        if (!localStorage.getItem("manager_password")) {
+            localStorage.setItem("manager_password", "Brijesh@1011");
         }
     }
 
@@ -486,7 +471,7 @@ class ArtStudioCRM {
     }
 
     checkAuth() {
-        const storedRole = sessionStorage.getItem('artis_crm_role');
+        const storedRole = localStorage.getItem('artis_crm_role');
         if (storedRole && ['Owner', 'Manager', 'Team'].includes(storedRole)) {
             this.currentUser = storedRole;
             // Start the notification listener first so cross-device messages arrive early
@@ -500,7 +485,7 @@ class ArtStudioCRM {
 
     login(role) {
         this.currentUser = role;
-        sessionStorage.setItem('artis_crm_role', role);
+        localStorage.setItem('artis_crm_role', role);
         // ensure notifications listener is active before showing dashboard
         this.startNotificationListener();
         this.showDashboard();
@@ -508,7 +493,7 @@ class ArtStudioCRM {
 
     logout() {
         this.currentUser = null;
-        sessionStorage.removeItem('artis_crm_role');
+        localStorage.removeItem('artis_crm_role');
         window.location.reload();
     }
 
@@ -2399,8 +2384,12 @@ Kindly arrange the remaining payment at your earliest convenience. Thank you for
         errorBox.style.color = 'var(--danger)';
         errorBox.style.borderColor = 'rgba(239, 68, 68, 0.3)';
 
-        if (passInput !== this.passwords[role]) {
-            errorBox.textContent = `Incorrect Password for ${role}.`;
+        let valid = false;
+        if (role === 'Owner' && passInput === localStorage.getItem("owner_password")) valid = true;
+        else if (role === 'Manager' && passInput === localStorage.getItem("manager_password")) valid = true;
+
+        if (!valid) {
+            errorBox.textContent = "Invalid Password";
             errorBox.style.display = 'block';
             return;
         }
@@ -2422,7 +2411,22 @@ Kindly arrange the remaining payment at your earliest convenience. Thank you for
         msgBox.style.color = 'var(--danger)';
         msgBox.style.borderColor = 'rgba(239, 68, 68, 0.3)';
 
-        if (currentPass !== this.passwords[this.currentUser]) {
+        let currentStoredPass = '';
+        let passKey = '';
+
+        if (this.currentUser === 'Owner') {
+            currentStoredPass = localStorage.getItem("owner_password");
+            passKey = "owner_password";
+        } else if (this.currentUser === 'Manager') {
+            currentStoredPass = localStorage.getItem("manager_password");
+            passKey = "manager_password";
+        } else {
+            msgBox.textContent = 'Password change not permitted for this role.';
+            msgBox.style.display = 'block';
+            return;
+        }
+
+        if (currentPass !== currentStoredPass) {
             msgBox.textContent = 'Current Password does not match.';
             msgBox.style.display = 'block';
             return;
@@ -2430,7 +2434,7 @@ Kindly arrange the remaining payment at your earliest convenience. Thank you for
 
         const passRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
         if (!passRegex.test(newPass)) {
-            msgBox.textContent = 'Validation Error: New Password requirements not met.';
+            msgBox.textContent = 'Validation Error: New Password requirements not met. Needs 8+ chars, 1 uppercase, 1 lowercase, 1 number, 1 special char.';
             msgBox.style.display = 'block';
             return;
         }
@@ -2441,14 +2445,13 @@ Kindly arrange the remaining payment at your earliest convenience. Thank you for
             return;
         }
 
-        this.passwords[this.currentUser] = newPass;
-        localStorage.setItem('artis_crm_passwords', JSON.stringify(this.passwords));
+        localStorage.setItem(passKey, newPass);
 
         msgBox.className = 'error-text';
         msgBox.style.background = 'rgba(16, 185, 129, 0.1)';
         msgBox.style.color = 'var(--success)';
         msgBox.style.borderColor = 'rgba(16, 185, 129, 0.3)';
-        msgBox.textContent = 'Password successfully updated!';
+        msgBox.textContent = 'Password updated successfully';
         msgBox.style.display = 'block';
 
         document.getElementById('change-pass-form').reset();
