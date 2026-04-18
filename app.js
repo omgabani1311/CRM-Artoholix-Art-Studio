@@ -55,6 +55,11 @@ class ArtStudioCRM {
         this.acceptedNotifications = JSON.parse(localStorage.getItem('artis_accepted_notifs')) || [];
         this.notificationQueue = [];
         this.isShowingNotification = false;
+        this.config = JSON.parse(localStorage.getItem('artis_crm_config')) || {
+            studioName: 'Artis Studio Co.',
+            email: 'admin@artis.com',
+            currency: 'INR'
+        };
         this.init();
     }
 
@@ -131,6 +136,9 @@ class ArtStudioCRM {
         themeRadios.forEach(r => {
             if (r.value === savedTheme) r.checked = true;
         });
+
+        this.applyConfig();
+        this.startGlobalSync();
     }
 
     populateCityDropdown() {
@@ -155,6 +163,117 @@ class ArtStudioCRM {
         } else if (stateInput) {
             stateInput.value = '';
         }
+    }
+
+    startGlobalSync() {
+        if (!db) return;
+        
+        // Listen for all records changes
+        db.ref('studio_records').on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (!data) return;
+
+            console.debug('[sync] Received global sync data');
+            
+            let updated = false;
+            
+            if (data.followUps && JSON.stringify(data.followUps) !== JSON.stringify(this.followUps)) {
+                this.followUps = data.followUps;
+                localStorage.setItem('artis_crm_data', JSON.stringify(this.followUps));
+                updated = true;
+            }
+            
+            if (data.clients && JSON.stringify(data.clients) !== JSON.stringify(this.clients)) {
+                this.clients = data.clients;
+                localStorage.setItem('artis_crm_clients', JSON.stringify(this.clients));
+                updated = true;
+            }
+            
+            if (data.teamMembers && JSON.stringify(data.teamMembers) !== JSON.stringify(this.teamMembers)) {
+                this.teamMembers = data.teamMembers;
+                localStorage.setItem('artis_crm_team', JSON.stringify(this.teamMembers));
+                updated = true;
+            }
+            
+            if (data.students && JSON.stringify(data.students) !== JSON.stringify(this.students)) {
+                this.students = data.students;
+                localStorage.setItem('artis_crm_students', JSON.stringify(this.students));
+                updated = true;
+            }
+            
+            if (data.config && JSON.stringify(data.config) !== JSON.stringify(this.config)) {
+                this.config = data.config;
+                localStorage.setItem('artis_crm_config', JSON.stringify(this.config));
+                this.applyConfig();
+                updated = true;
+            }
+            
+            if (data.passwords && JSON.stringify(data.passwords) !== JSON.stringify(this.passwords)) {
+                this.passwords = data.passwords;
+                localStorage.setItem('artis_crm_passwords', JSON.stringify(this.passwords));
+                updated = true;
+            }
+
+            if (updated) {
+                console.debug('[sync] UI Refresh triggered by sync');
+                const activePage = document.querySelector('.page-section.section-active');
+                if (activePage) this.navigate(activePage.id.replace('page-', ''));
+            }
+        });
+    }
+
+    pushToFirebase() {
+        if (!db || !['Owner', 'Manager'].includes(this.currentUser)) return;
+        
+        const payload = {
+            followUps: this.followUps,
+            clients: this.clients,
+            teamMembers: this.teamMembers,
+            students: this.students,
+            config: this.config,
+            passwords: this.passwords,
+            lastSync: Date.now(),
+            syncBy: this.currentUser
+        };
+        
+        db.ref('studio_records').set(payload).catch(e => console.error('[sync] Push failed', e));
+    }
+
+    applyConfig() {
+        const studioBadge = document.getElementById('logo-sidebar');
+        // If we had a studio name text in header, we'd update it here.
+        // For now, let's update the inputs on the settings page if it's active
+        const nameInput = document.getElementById('conf-studio-name');
+        const emailInput = document.getElementById('conf-studio-email');
+        const currInput = document.getElementById('conf-studio-currency');
+        
+        if (nameInput) nameInput.value = this.config.studioName;
+        if (emailInput) emailInput.value = this.config.email;
+        if (currInput) currInput.value = this.config.currency;
+        
+        // Update welcome message or other UI elements if needed
+        const welcome = document.getElementById('welcome-message');
+        if (welcome && this.currentUser) {
+            welcome.textContent = `Welcome to ${this.config.studioName}, ${this.currentUser}`;
+        }
+    }
+
+    saveProfileSettings() {
+        if (!['Owner', 'Manager'].includes(this.currentUser)) {
+            this.showAlert('Access Denied', 'Permission Required');
+            return;
+        }
+        
+        this.config = {
+            studioName: document.getElementById('conf-studio-name').value.trim(),
+            email: document.getElementById('conf-studio-email').value.trim(),
+            currency: document.getElementById('conf-studio-currency').value
+        };
+        
+        localStorage.setItem('artis_crm_config', JSON.stringify(this.config));
+        this.pushToFirebase();
+        this.applyConfig();
+        this.showAlert('Profile settings saved and synced!', 'Success');
     }
 
     startNotificationListener() {
@@ -449,29 +568,41 @@ class ArtStudioCRM {
             this.saveClientsData();
         }
 
-        // Default Passwords Setup
-        if (!localStorage.getItem("owner_password")) {
-            localStorage.setItem("owner_password", "Owner@123");
-        }
-        if (!localStorage.getItem("manager_password")) {
-            localStorage.setItem("manager_password", "Brijesh@1011");
+        // Passwords logic must retain default credentials
+        const storedPass = localStorage.getItem('artis_crm_passwords');
+        this.passwords = storedPass ? JSON.parse(storedPass) : { Owner: 'Owner@123', Manager: 'Manager@123' };
+        if (!storedPass) {
+            localStorage.setItem('artis_crm_passwords', JSON.stringify(this.passwords));
         }
     }
 
     saveData() {
         localStorage.setItem('artis_crm_data', JSON.stringify(this.followUps));
+        this.pushToFirebase();
     }
 
     saveClientsData() {
         localStorage.setItem('artis_crm_clients', JSON.stringify(this.clients));
+        this.pushToFirebase();
     }
 
     saveTeamData() {
         localStorage.setItem('artis_crm_team', JSON.stringify(this.teamMembers));
+        this.pushToFirebase();
+    }
+
+    saveStudentsData() {
+        localStorage.setItem('artis_crm_students', JSON.stringify(this.students));
+        this.pushToFirebase();
+    }
+
+    savePasswords() {
+        localStorage.setItem('artis_crm_passwords', JSON.stringify(this.passwords));
+        this.pushToFirebase();
     }
 
     checkAuth() {
-        const storedRole = localStorage.getItem('artis_crm_role');
+        const storedRole = sessionStorage.getItem('artis_crm_role');
         if (storedRole && ['Owner', 'Manager', 'Team'].includes(storedRole)) {
             this.currentUser = storedRole;
             // Start the notification listener first so cross-device messages arrive early
@@ -485,7 +616,7 @@ class ArtStudioCRM {
 
     login(role) {
         this.currentUser = role;
-        localStorage.setItem('artis_crm_role', role);
+        sessionStorage.setItem('artis_crm_role', role);
         // ensure notifications listener is active before showing dashboard
         this.startNotificationListener();
         this.showDashboard();
@@ -493,7 +624,7 @@ class ArtStudioCRM {
 
     logout() {
         this.currentUser = null;
-        localStorage.removeItem('artis_crm_role');
+        sessionStorage.removeItem('artis_crm_role');
         window.location.reload();
     }
 
@@ -652,6 +783,7 @@ class ArtStudioCRM {
         } else if (pageId === 'employees') {
             this.renderEmployees();
         } else if (pageId === 'settings') {
+            this.applyConfig();
             const passMsg = document.getElementById('pass-msg');
             if (passMsg) {
                 passMsg.style.display = 'none';
@@ -1950,16 +2082,35 @@ Kindly arrange the remaining payment at your earliest convenience. Thank you for
 
         const name = document.getElementById('t-name').value.trim();
         const role = document.getElementById('t-role').value;
+        const location = document.getElementById('t-location').value.trim();
         const phoneRaw = document.getElementById('t-phone').value.trim();
         const phone = (this.tIti && this.tIti.getNumber()) ? this.tIti.getNumber() : phoneRaw;
 
         const id = document.getElementById('t-id').value;
+        
+        // Preserve existing salary data if editing
+        let baseSalary = 0;
+        let paidSalary = 0;
+        let salaryNote = '';
+        
+        if (id) {
+            const existing = this.teamMembers.find(m => m.id === parseInt(id));
+            if (existing) {
+                baseSalary = existing.baseSalary || 0;
+                paidSalary = existing.paidSalary || 0;
+                salaryNote = existing.salaryNote || '';
+            }
+        }
+
         const payload = {
             id: id ? parseInt(id) : Date.now(),
             name: name,
-            location: document.getElementById('t-location').value.trim(),
+            location: location,
             role: role,
-            phone: phone
+            phone: phone,
+            baseSalary: baseSalary,
+            paidSalary: paidSalary,
+            salaryNote: salaryNote
         };
 
         if (id) {
@@ -2384,12 +2535,8 @@ Kindly arrange the remaining payment at your earliest convenience. Thank you for
         errorBox.style.color = 'var(--danger)';
         errorBox.style.borderColor = 'rgba(239, 68, 68, 0.3)';
 
-        let valid = false;
-        if (role === 'Owner' && passInput === localStorage.getItem("owner_password")) valid = true;
-        else if (role === 'Manager' && passInput === localStorage.getItem("manager_password")) valid = true;
-
-        if (!valid) {
-            errorBox.textContent = "Invalid Password";
+        if (passInput !== this.passwords[role]) {
+            errorBox.textContent = `Incorrect Password for ${role}.`;
             errorBox.style.display = 'block';
             return;
         }
@@ -2411,22 +2558,7 @@ Kindly arrange the remaining payment at your earliest convenience. Thank you for
         msgBox.style.color = 'var(--danger)';
         msgBox.style.borderColor = 'rgba(239, 68, 68, 0.3)';
 
-        let currentStoredPass = '';
-        let passKey = '';
-
-        if (this.currentUser === 'Owner') {
-            currentStoredPass = localStorage.getItem("owner_password");
-            passKey = "owner_password";
-        } else if (this.currentUser === 'Manager') {
-            currentStoredPass = localStorage.getItem("manager_password");
-            passKey = "manager_password";
-        } else {
-            msgBox.textContent = 'Password change not permitted for this role.';
-            msgBox.style.display = 'block';
-            return;
-        }
-
-        if (currentPass !== currentStoredPass) {
+        if (currentPass !== this.passwords[this.currentUser]) {
             msgBox.textContent = 'Current Password does not match.';
             msgBox.style.display = 'block';
             return;
@@ -2434,7 +2566,7 @@ Kindly arrange the remaining payment at your earliest convenience. Thank you for
 
         const passRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
         if (!passRegex.test(newPass)) {
-            msgBox.textContent = 'Validation Error: New Password requirements not met. Needs 8+ chars, 1 uppercase, 1 lowercase, 1 number, 1 special char.';
+            msgBox.textContent = 'Validation Error: New Password requirements not met.';
             msgBox.style.display = 'block';
             return;
         }
@@ -2445,13 +2577,14 @@ Kindly arrange the remaining payment at your earliest convenience. Thank you for
             return;
         }
 
-        localStorage.setItem(passKey, newPass);
+        this.passwords[this.currentUser] = newPass;
+        this.savePasswords();
 
         msgBox.className = 'error-text';
         msgBox.style.background = 'rgba(16, 185, 129, 0.1)';
         msgBox.style.color = 'var(--success)';
         msgBox.style.borderColor = 'rgba(16, 185, 129, 0.3)';
-        msgBox.textContent = 'Password updated successfully';
+        msgBox.textContent = 'Password successfully updated!';
         msgBox.style.display = 'block';
 
         document.getElementById('change-pass-form').reset();
@@ -2551,6 +2684,11 @@ Kindly arrange the remaining payment at your earliest convenience. Thank you for
 
         const passForm = document.getElementById('change-pass-form');
         if (passForm) passForm.addEventListener('submit', (e) => this.handleChangePassword(e));
+
+        const savePrefBtn = document.querySelector('.btn-secondary[onclick*="showAlert(\'Settings saved successfully!\'"]');
+        if (savePrefBtn) {
+            savePrefBtn.setAttribute('onclick', 'app.saveProfileSettings()');
+        }
 
         const stuForm = document.getElementById('student-form');
         if (stuForm) stuForm.addEventListener('submit', (e) => this.saveStudent(e));
