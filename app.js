@@ -10,12 +10,17 @@ const firebaseConfig = {
 };
 
 let db = null;
+const sessionID = Date.now() + Math.random().toString(36).substring(2);
+
 try {
     if (typeof firebase !== 'undefined') {
         const firebaseApp = firebase.initializeApp(firebaseConfig);
         db = firebaseApp.database();
+        console.log('[Fire-Sync] Initialized Realtime Database');
+    } else {
+        console.warn('[Fire-Sync] Firebase SDK not found. Real-time tracking disabled.');
     }
-} catch (e) { console.error(e); }
+} catch (e) { console.error('[Fire-Sync] Init error:', e); }
 
 const CITY_STATE_MAP = {
     // Gujarat Cities
@@ -173,7 +178,12 @@ class ArtStudioCRM {
             const data = snapshot.val();
             if (!data) return;
 
-            console.debug('[sync] Received global sync data');
+            console.debug(`[Fire-Sync] Sync Received from ${data.syncBy} (Session: ${data.sessionID || 'legacy'})`);
+            
+            // Avoid syncing back our own changes
+            if (data.sessionID === sessionID) {
+                return;
+            }
             
             let updated = false;
             
@@ -223,8 +233,13 @@ class ArtStudioCRM {
     }
 
     pushToFirebase() {
-        if (!db || !['Owner', 'Manager'].includes(this.currentUser)) return;
+        if (!db || !this.currentUser) return;
         
+        // Prevent rapid duplicate syncs
+        const now = Date.now();
+        if (this.lastPush && (now - this.lastPush) < 500) return;
+        this.lastPush = now;
+
         const payload = {
             followUps: this.followUps,
             clients: this.clients,
@@ -232,11 +247,17 @@ class ArtStudioCRM {
             students: this.students,
             config: this.config,
             passwords: this.passwords,
-            lastSync: Date.now(),
-            syncBy: this.currentUser
+            lastSync: now,
+            syncBy: this.currentUser,
+            sessionID: sessionID
         };
         
-        db.ref('studio_records').set(payload).catch(e => console.error('[sync] Push failed', e));
+        console.debug('[Fire-Sync] Pushing local data to Cloud...', { role: this.currentUser });
+        db.ref('studio_records').set(payload).then(() => {
+            console.debug('[Fire-Sync] Cloud sync successful');
+        }).catch(e => {
+            console.error('[Fire-Sync] Cloud sync failed (Check Table Rules):', e);
+        });
     }
 
     applyConfig() {
