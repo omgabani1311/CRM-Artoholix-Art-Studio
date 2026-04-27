@@ -524,7 +524,7 @@ class ArtStudioCRM {
         try { localStorage.setItem('artis_crm_notify', JSON.stringify(payload)); } catch (e) { console.debug('localStorage write failed', e); }
     }
 
-    triggerWhatsApp(assignString, clientName, style) {
+    triggerSMS(assignString, clientName, style) {
         let phoneNum = '';
         let targetName = '';
         if (assignString === 'Manager') {
@@ -543,10 +543,10 @@ class ArtStudioCRM {
         }
 
         if (phoneNum) {
-            const waNum = phoneNum.replace(/[^0-9]/g, '');
-            if (waNum.length >= 10) {
+            const smsNum = phoneNum.replace(/[^0-9+]/g, '');
+            if (smsNum.length >= 10) {
                 const msg = `Hello ${targetName} ✨\nYou have been explicitly assigned a new project: *${clientName}*.\nArt Style: ${style}\n\nPlease login to the Studio CRM to view updates.`;
-                window.open(`https://wa.me/${waNum}?text=${encodeURIComponent(msg)}`, '_blank');
+                window.location.href = `sms:${smsNum}?body=${encodeURIComponent(msg)}`;
             }
         }
     }
@@ -1694,7 +1694,7 @@ Kindly arrange the remaining payment at your earliest convenience. Thank you for
 
                 this.sendGlobalNotification('Task Assigned 📌', `${item.client}'s project was assigned to ${assignString}. Please accept to start work.`, targetRole, { action: 'assign', taskId: item.id, assignTo: assignString });
                 if (this.currentUser === 'Owner') {
-                    this.triggerWhatsApp(assignString, item.client, item.style);
+                    this.triggerSMS(assignString, item.client, item.style);
                 }
                 this.renderStats();
                 this.renderFollowUpsPreview();
@@ -2010,7 +2010,7 @@ Kindly arrange the remaining payment at your earliest convenience. Thank you for
             this.followUps.push(payload);
             this.sendGlobalNotification('New Follow-up Assigned 📌', `${clientName}'s project was created and assigned to ${assign}`, 'All');
             if (this.currentUser === 'Owner' && assign !== 'Unassigned') {
-                this.triggerWhatsApp(assign, clientName, style);
+                this.triggerSMS(assign, clientName, style);
             }
         }
 
